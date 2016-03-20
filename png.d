@@ -1,3 +1,4 @@
+/// PNG file handling for color.d's Image interfaces
 module arsd.png;
 
 /// Easily reads a png file into a MemoryImage
@@ -15,6 +16,7 @@ void writePng(string filename, MemoryImage mi) {
 	else if(auto p = cast(TrueColorImage) mi)
 		png = pngFromImage(p);
 	else assert(0);
+	import std.file;
 	std.file.write(filename, writePng(png));
 }
 

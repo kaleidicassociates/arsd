@@ -27,16 +27,22 @@
 	mixin GenericMain!hello;
 	---
 
+
 	Compile_and_run:
 	
 	For CGI, `dmd yourfile.d cgi.d` then put the executable in your cgi-bin directory.
+
 	For FastCGI: `dmd yourfile.d cgi.d -version=fastcgi` and run it. spawn-fcgi helps on nginx. You can put the file in the directory for Apache. On IIS, run it with a port on the command line.
+
 	For SCGI: `dmd yourfile.d cgi.d -version=scgi` and run the executable, providing a port number on the command line.
+
 	For an embedded HTTP server, run `dmd yourfile.d cgi.d -version=embedded_httpd` and run the generated program. It listens on port 8085 by default. You can change this on the command line with the --port option when running your program.
 
 	You can also simulate a request by passing parameters on the command line, like:
 
+	```console
 	./yourprogram GET / name=adr
+	```
 
 	And it will print the result to stdout.
 
@@ -103,32 +109,43 @@
 	---
 
 	Concepts:
-		Input: get, post, request(), files, cookies, pathInfo, requestMethod, and HTTP headers (headers, userAgent, referrer, accept, authorization, lastEventId
-		Output: cgi.write(), cgi.header(), cgi.setResponseStatus, cgi.setResponseContentType, gzipResponse
-		Cookies: setCookie, clearCookie, cookie, cookies
-		Caching: cgi.setResponseExpires, cgi.updateResponseExpires, cgi.setCache
-		Redirections: cgi.setResponseLocation
-		Other Information: remoteAddress, https, port, scriptName, requestUri, getCurrentCompleteUri, onRequestBodyDataReceived
-		Overriding behavior: handleIncomingDataChunk, prepareForIncomingDataChunks, cleanUpPostDataState
+		Input: [Cgi.get], [Cgi.post], [Cgi.request], [Cgi.files], [Cgi.cookies], [Cgi.pathInfo], [Cgi.requestMethod],
+		       and HTTP headers ([Cgi.headers], [Cgi.userAgent], [Cgi.referrer], [Cgi.accept], [Cgi.authorization], [Cgi.lastEventId]
+
+		Output: [Cgi.write], [Cgi.header], [Cgi.setResponseStatus], [Cgi.setResponseContentType], [Cgi.gzipResponse]
+
+		Cookies: [Cgi.setCookie], [Cgi.clearCookie], [Cgi.cookie], [Cgi.cookies]
+
+		Caching: [Cgi.setResponseExpires], [Cgi.updateResponseExpires], [Cgi.setCache]
+
+		Redirections: [Cgi.setResponseLocation]
+
+		Other Information: [Cgi.remoteAddress], [Cgi.https], [Cgi.port], [Cgi.scriptName], [Cgi.requestUri], [Cgi.getCurrentCompleteUri], [Cgi.onRequestBodyDataReceived]
+
+		Overriding behavior: [Cgi.handleIncomingDataChunk], [Cgi.prepareForIncomingDataChunks], [Cgi.cleanUpPostDataState]
 
 		Installing: Apache, IIS, CGI, FastCGI, SCGI, embedded HTTPD (not recommended for production use)
 
 	Guide_for_PHP_users:
 		If you are coming from PHP, here's a quick guide to help you get started:
 
+		```
 		$_GET["var"] == cgi.get["var"]
 		$_POST["var"] == cgi.post["var"]
 		$_COOKIE["var"] == cgi.cookies["var"]
+		```
 
-		In PHP, you can give a form element a name like "something[]", and then
-		$_POST["something"] gives an array. In D, you can use whatever name
-		you want, and access an array of values with the cgi.getArray["name"] and
-		cgi.postArray["name"] members.
+		In PHP, you can give a form element a name like `"something[]"`, and then
+		`$_POST["something"]` gives an array. In D, you can use whatever name
+		you want, and access an array of values with the `cgi.getArray["name"]` and
+		`cgi.postArray["name"]` members.
 
+		```
 		echo("hello"); == cgi.write("hello");
 
 		$_SERVER["REMOTE_ADDR"] == cgi.remoteAddress
 		$_SERVER["HTTP_HOST"] == cgi.host
+		```
 
 	See_Also:
 
@@ -140,14 +157,14 @@
 
 	Copyright:
 
-	cgi.d copyright 2008-2015, Adam D. Ruppe. Provided under the Boost Software License.
+	cgi.d copyright 2008-2016, Adam D. Ruppe. Provided under the Boost Software License.
 
-	Yes, this file is seven years old, and yes, it is still actively maintained and used.
+	Yes, this file is almost eight years old, and yes, it is still actively maintained and used.
 +/
 module arsd.cgi;
 
 version(embedded_httpd) {
-	version(Posix)
+	version(linux)
 		version=embedded_httpd_processes;
 	else
 		version=embedded_httpd_threads;
@@ -2523,8 +2540,15 @@ bool isCgiRequestMethod(string s) {
 /// If you want to use a subclass of Cgi with generic main, use this mixin.
 mixin template CustomCgiMain(CustomCgi, alias fun, long maxContentLength = defaultMaxContentLength) if(is(CustomCgi : Cgi)) {
 	// kinda hacky - the T... is passed to Cgi's constructor in standard cgi mode, and ignored elsewhere
+	mixin CustomCgiMainImpl!(CustomCgi, fun, maxContentLength) customCgiMainImpl_;
 
 	void main(string[] args) {
+		customCgiMainImpl_.cgiMainImpl(args);
+	}
+}
+
+mixin template CustomCgiMainImpl(CustomCgi, alias fun, long maxContentLength = defaultMaxContentLength) if(is(CustomCgi : Cgi)) {
+	void cgiMainImpl(string[] args) {
 
 
 		// we support command line thing for easy testing everywhere
@@ -3100,6 +3124,7 @@ import std.socket;
 
 // it is a class primarily for reference semantics
 // I might change this interface
+///
 class BufferedInputRange {
 	version(Posix)
 	this(int source, ubyte[] buffer = null) {
@@ -3430,7 +3455,7 @@ version(Windows) {
 }
 
 version(Posix) {
-	static import linux = std.c.linux.linux;
+	static import linux = core.sys.posix.unistd;
 }
 
 string getTempDirectory() {
@@ -3637,6 +3662,7 @@ version(cgi_with_websocket) {
 		WEBSOCKET SUPPORT:
 
 		Full example:
+		---
 			import arsd.cgi;
 
 			void websocketEcho(Cgi cgi) {
@@ -3664,6 +3690,7 @@ version(cgi_with_websocket) {
 			}
 
 			mixin GenericMain!websocketEcho;
+		---
 	*/
 
 	class WebSocket {
@@ -3764,6 +3791,8 @@ version(cgi_with_websocket) {
 
 		cgi.websocketMode = true;
 		cgi.write("");
+
+		cgi.flush();
 
 		return new WebSocket(cgi);
 	}
@@ -3878,6 +3907,7 @@ version(cgi_with_websocket) {
 			//writeln("SENDING ", headerScratch[0 .. headerScratchPos], data);
 			cgi.write(headerScratch[0 .. headerScratchPos]);
 			cgi.write(data);
+			cgi.flush();
 		}
 
 		static WebSocketMessage read(ubyte[] d) {

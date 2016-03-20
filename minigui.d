@@ -1,8 +1,26 @@
 // http://msdn.microsoft.com/en-us/library/windows/desktop/bb775498%28v=vs.85%29.aspx
 
-/// FOR BEST RESULTS: be sure to link with the appropriate subsystem command
-/// -L/SUBSYSTEM:WINDOWS:5.0
-/// otherwise you'll get a console and other visual bugs.
+/++
+	minigui is a smallish GUI widget library, aiming to be on par with at least
+	HTML4 forms and a few other expected gui components. It uses native controls
+	on Windows and does its own thing on Linux (Mac is not currently supported but
+	may be later, and should use native controls) to keep size down.
+
+	Its #1 goal is to be useful without being large and complicated like GTK and Qt.
+	I love Qt, if you want something full featured, use it! But if you want something
+	you can just drop into a small project and expect the basics to work without outside
+	dependencies, hopefully minigui will work for you.
+
+	The event model is similar to what you use in the browser with Javascript and the
+	layout engine tries to automatically fit things in.
+
+
+	FOR BEST RESULTS: be sure to link with the appropriate subsystem command
+	`-L/SUBSYSTEM:WINDOWS:5.0`, for example, because otherwise you'll get a
+	console and other visual bugs.
+
+	Examples:
++/
 module arsd.minigui;
 
 /*
@@ -213,9 +231,11 @@ class Action {
 		static Action[int] mapping;
 	}
 
-	this(string label, ushort icon = 0) {
+	this(string label, ushort icon = 0, void delegate() triggered = null) {
 		this.label = label;
 		this.iconId = icon;
+		if(triggered !is null)
+			this.triggered ~= triggered;
 		version(win32_widgets) {
 			id = ++lastId;
 			mapping[id] = this;
@@ -1156,16 +1176,17 @@ class MainWindow : Window {
 
 	MenuBar _menu;
 	MenuBar menu() { return _menu; }
-	void menu(MenuBar m) {
+	MenuBar menu(MenuBar m) {
 		if(_menu !is null) {
 			// make sure it is sanely removed
 			// FIXME
 		}
 
+		_menu = m;
+
 		version(win32_widgets) {
 			SetMenu(parentWindow.win.impl.hwnd, m.handle);
 		} else {
-			_menu = m;
 			super.addChild(m, 0);
 
 		//	clientArea.y = menu.height;
@@ -1173,6 +1194,8 @@ class MainWindow : Window {
 
 			recomputeChildLayout();
 		}
+
+		return _menu;
 	}
 	private Widget _clientArea;
 	@property Widget clientArea() { return _clientArea; }
@@ -1186,6 +1209,9 @@ class MainWindow : Window {
 		_statusBar = bar;
 		super.addChild(_statusBar);
 	}
+
+	@property string title() { return parentWindow.win.title; }
+	@property void title(string title) { parentWindow.win.title = title; }
 }
 
 /**
@@ -2092,6 +2118,10 @@ class LineEdit : Widget {
 }
 
 class TextEdit : Widget {
+
+	// FIXME
+	mixin ExperimentalTextComponent;
+
 	override int minHeight() { return Window.lineHeight; }
 	override int heightStretchiness() { return 3; }
 	override int widthStretchiness() { return 3; }
@@ -2107,27 +2137,46 @@ class TextEdit : Widget {
 	this(Widget parent = null) {
 		super(parent);
 
+		textLayout = new TextLayout(Rectangle(0, 0, width, height));
+
 		this.paint = (ScreenPainter painter) {
 			painter.fillColor = Color.white;
 			painter.drawRectangle(Point(0, 0), width, height);
 
+			textLayout.boundingBox = Rectangle(4, 4, width - 8, height - 8);
+
 			painter.outlineColor = Color.black;
-			painter.drawText(Point(4, 4), content, Point(width - 4, height - 4));
+			// painter.drawText(Point(4, 4), content, Point(width - 4, height - 4));
+
+			textLayout.drawInto(painter);
 		};
 
 		caratTimer = new Timer(500, {
-			auto painter = this.draw();
-			painter.pen = Pen(Color.white, 1);
-			painter.rasterOp = RasterOp.xor;
-			painter.drawLine(Point(16, 0), Point(16, 16));
+			if(!parentWindow.win.closed && parentWindow.focusedWidget is this) {
+				auto painter = this.draw();
+				painter.pen = Pen(Color.white, 1);
+				painter.rasterOp = RasterOp.xor;
+				if(lastClick.element) {
+					painter.drawLine(
+						Point(lastClick.element.xOfIndex(lastClick.offset + 1), lastClick.element.boundingBox.top),
+						Point(lastClick.element.xOfIndex(lastClick.offset + 1), lastClick.element.boundingBox.bottom)
+					);
+				} else {
+					painter.drawLine(
+						Point(4, 4),
+						Point(4, 10)
+					);
+				}
+			}
 		});
 
 		defaultEventHandlers["click"] = delegate (Widget _this, Event ev) {
 			this.focus();
+			lastClick = textLayout.identify(ev.clientX, ev.clientY);
 		};
 
 		defaultEventHandlers["char"] = delegate (Widget _this, Event ev) {
-			content = content() ~ cast(char) ev.character;
+			textLayout.addText("" ~ cast(char) ev.character); // FIXME
 			redraw();
 		};
 
@@ -2136,7 +2185,6 @@ class TextEdit : Widget {
 		//super();
 	}
 
-	string _content;
 	@property string content() {
 		version(win32_widgets) {
 			char[4096] buffer;
@@ -2144,16 +2192,21 @@ class TextEdit : Widget {
 			// FIXME: GetWindowTextLength
 			auto l = GetWindowTextA(hwnd, buffer.ptr, buffer.length - 1);
 			if(l >= 0)
-				_content = buffer[0 .. l].idup;
+				return buffer[0 .. l].idup;
+			else
+				return null;
+		} else {
+			return textLayout.getPlainText();
 		}
-		return _content;
 	}
 	@property void content(string s) {
-		_content = s;
 		version(win32_widgets)
 			SetWindowTextA(hwnd, toStringzInternal(s));
-		else
+		else {
+			textLayout.clear();
+			textLayout.addText(s);
 			redraw();
+		}
 	}
 
 	void focus() {
@@ -2165,6 +2218,8 @@ class TextEdit : Widget {
 
 	} else {
 		Timer caratTimer;
+		TextLayout textLayout;
+		TextIdentifyResult lastClick;
 	}
 }
 

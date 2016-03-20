@@ -1,22 +1,68 @@
-/**
- * Module for supporting cursor and color manipulation on the console.
- *
- * The main interface for this module is the Terminal struct, which
- * encapsulates the functions of the terminal. Creating an instance of
- * this struct will perform console initialization; when the struct
- * goes out of scope, any changes in console settings will be automatically
- * reverted.
- *
- * Note: on Posix, it traps SIGINT and translates it into an input event. You should
- * keep your event loop moving and keep an eye open for this to exit cleanly; simply break
- * your event loop upon receiving a UserInterruptionEvent. (Without
- * the signal handler, ctrl+c can leave your terminal in a bizarre state.)
- *
- * As a user, if you have to forcibly kill your program and the event doesn't work, there's still ctrl+\
- *
- * On Mac Terminal btw, a lot of hacks are needed and mouse support doesn't work. It basically works now though.
- */
+/++
+	Module for supporting cursor and color manipulation on the console as well
+	as full-featured real-time input.
+
+	The main interface for this module is the Terminal struct, which
+	encapsulates the output functions and line-buffered input of the terminal, and
+	RealTimeConsoleInput, which gives real time input.
+	
+	Creating an instance of these structs will perform console initialization. When the struct
+	goes out of scope, any changes in console settings will be automatically reverted.
+
+	Note: on Posix, it traps SIGINT and translates it into an input event. You should
+	keep your event loop moving and keep an eye open for this to exit cleanly; simply break
+	your event loop upon receiving a UserInterruptionEvent. (Without
+	the signal handler, ctrl+c can leave your terminal in a bizarre state.)
+
+	As a user, if you have to forcibly kill your program and the event doesn't work, there's still ctrl+\
+
+	On Mac Terminal btw, a lot of hacks are needed and mouse support doesn't work. Most functions basically
+	work now though.
+
+	ROADMAP:
+		* The CharacterEvent and NonCharacterKeyEvent types will be removed. Instead, use KeyboardEvent
+		  on new programs.
+
+		* The ScrollbackBuffer will be expanded to be easier to use to partition your screen. It might even
+		  handle input events of some sort. Its API may change.
+
+		* getline I want to be really easy to use both for code and end users. It will need multi-line support
+		  eventually.
+
+		* I might add an expandable event loop and base level widget classes. This may be Linux-specific in places and may overlap with similar functionality in simpledisplay.d. If I can pull it off without a third module, I want them to be compatible with each other too so the two modules can be combined easily. (Currently, they are both compatible with my eventloop.d and can be easily combined through it, but that is a third module.)
+
+		* More advanced terminal features as functions, where available, like cursor changing and full-color functions.
+
+		* The module will eventually be renamed to `arsd.terminal`.
+
+		* More documentation.
+
+	WHAT I WON'T DO:
+		* support everything under the sun. If it isn't default-installed on an OS I or significant number of other people
+		  might actually use, and isn't written by me, I don't really care about it. This means the only supported terminals are:
+
+		  - xterm (and decently xterm compatible emulators like Konsole)
+		  - Windows console
+		  - rxvt (to a lesser extent)
+		  - Linux console
+		  - My terminal emulator family of applications <https://github.com/adamdruppe/terminal-emulator>
+
+		  Anything else is cool if it does work, but I don't want to go out of my way for it.
+
+		* Use other libraries, unless strictly optional. terminal.d is a stand-alone module by default and
+		  always will be.
+
+		* Do a full TUI widget set. I might do some basics and lay a little groundwork, but a full TUI
+		  is outside the scope of this module (unless I can do it really small.)
++/
 module terminal;
+
+/*
+	Widgets:
+		tab widget
+		scrollback buffer
+		partitioned canvas
+*/
 
 // FIXME: ctrl+d eof on stdin
 
@@ -647,14 +693,22 @@ struct Terminal {
 		}
 	}
 
-	version(Windows)
+	version(Windows) {
 		HANDLE hConsole;
+		CONSOLE_SCREEN_BUFFER_INFO originalSbi;
+	}
 
 	version(Windows)
 	/// ditto
 	this(ConsoleOutputType type) {
-		hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
 		if(type == ConsoleOutputType.cellular) {
+			hConsole = CreateConsoleScreenBuffer(GENERIC_READ | GENERIC_WRITE, 0, null, CONSOLE_TEXTMODE_BUFFER, null);
+			if(hConsole == INVALID_HANDLE_VALUE) {
+				import std.conv;
+				throw new Exception(to!string(GetLastError()));
+			}
+
+			SetConsoleActiveScreenBuffer(hConsole);
 			/*
 http://msdn.microsoft.com/en-us/library/windows/desktop/ms686125%28v=vs.85%29.aspx
 http://msdn.microsoft.com/en-us/library/windows/desktop/ms683193%28v=vs.85%29.aspx
@@ -668,11 +722,16 @@ http://msdn.microsoft.com/en-us/library/windows/desktop/ms683193%28v=vs.85%29.as
 			*/
 
 			// FIXME: this sucks, maybe i should just revert it. but there shouldn't be scrollbars in cellular mode
-			size.X = 80;
-			size.Y = 24;
-			SetConsoleScreenBufferSize(hConsole, size);
-			moveTo(0, 0, ForceOption.alwaysSend); // we need to know where the cursor is for some features to work, and moving it is easier than querying it
+			//size.X = 80;
+			//size.Y = 24;
+			//SetConsoleScreenBufferSize(hConsole, size);
+
+			clear();
+		} else {
+			hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
 		}
+
+		GetConsoleScreenBufferInfo(hConsole, &originalSbi);
 	}
 
 	// only use this if you are sure you know what you want, since the terminal is a shared resource you generally really want to reset it to normal when you leave...
@@ -700,12 +759,17 @@ http://msdn.microsoft.com/en-us/library/windows/desktop/ms683193%28v=vs.85%29.as
 
 	version(Windows)
 	~this() {
+		flush(); // make sure user data is all flushed before resetting
 		reset();
-		flush();
 		showCursor();
 
 		if(lineGetter !is null)
 			lineGetter.dispose();
+
+		auto stdo = GetStdHandle(STD_OUTPUT_HANDLE);
+		SetConsoleActiveScreenBuffer(stdo);
+		if(hConsole !is stdo)
+			CloseHandle(hConsole);
 	}
 
 	// lazily initialized and preserved between calls to getline for a bit of efficiency (only a bit)
@@ -749,7 +813,7 @@ http://msdn.microsoft.com/en-us/library/windows/desktop/ms683193%28v=vs.85%29.as
 							setTob = cast(ushort) (foreground & ~Bright);
 					}
 					SetConsoleTextAttribute(
-						GetStdHandle(STD_OUTPUT_HANDLE),
+						hConsole,
 						cast(ushort)((setTob << 4) | setTof));
 				}
 			} else {
@@ -811,8 +875,8 @@ http://msdn.microsoft.com/en-us/library/windows/desktop/ms683193%28v=vs.85%29.as
 	void reset() {
 		version(Windows)
 			SetConsoleTextAttribute(
-				GetStdHandle(STD_OUTPUT_HANDLE),
-				cast(ushort)((Color.black << 4) | Color.white));
+				hConsole,
+				originalSbi.wAttributes);
 		else
 			writeStringRaw("\033[0m");
 
@@ -954,12 +1018,17 @@ http://msdn.microsoft.com/en-us/library/windows/desktop/ms683193%28v=vs.85%29.as
 				}
 			}
 		} else version(Windows) {
-			while(writeBuffer.length) {
+			import std.conv;
+			// FIXME: I'm not sure I'm actually happy with this allocation but
+			// it probably isn't a big deal. At least it has unicode support now.
+			wstring writeBufferw = to!wstring(writeBuffer);
+			while(writeBufferw.length) {
 				DWORD written;
-				/* FIXME: WriteConsoleW */
-				WriteConsoleA(hConsole, writeBuffer.ptr, writeBuffer.length, &written, null);
-				writeBuffer = writeBuffer[written .. $];
+				WriteConsoleW(hConsole, writeBufferw.ptr, writeBufferw.length, &written, null);
+				writeBufferw = writeBufferw[written .. $];
 			}
+
+			writeBuffer = null;
 		}
 	}
 
@@ -1137,7 +1206,7 @@ http://msdn.microsoft.com/en-us/library/windows/desktop/ms683193%28v=vs.85%29.as
 			COORD coordScreen;
 			FillConsoleOutputCharacterA(hConsole, ' ', conSize, coordScreen, &c);
 			FillConsoleOutputAttribute(hConsole, csbi.wAttributes, conSize, coordScreen, &c);
-			moveTo(0, 0);
+			moveTo(0, 0, ForceOption.alwaysSend);
 		}
 
 		_cursorX = 0;
@@ -1157,7 +1226,8 @@ http://msdn.microsoft.com/en-us/library/windows/desktop/ms683193%28v=vs.85%29.as
 		if(prompt !is null)
 			lineGetter.prompt = prompt;
 
-		auto line = lineGetter.getline();
+		auto input = RealTimeConsoleInput(&this, ConsoleInputFlags.raw);
+		auto line = lineGetter.getline(&input);
 
 		// lineGetter leaves us exactly where it was when the user hit enter, giving best
 		// flexibility to real-time input and cellular programs. The convenience function,
@@ -1409,10 +1479,22 @@ struct RealTimeConsoleInput {
 			d();
 	}
 
-	/// Returns true if there iff getch() would not block.
+	/**
+		Returns true if there iff getch() would not block.
+
+		WARNING: kbhit might consume input that would be ignored by getch. This
+		function is really only meant to be used in conjunction with getch. Typically,
+		you should use a full-fledged event loop if you want all kinds of input. kbhit+getch
+		are just for simple keyboard driven applications.
+	*/
 	bool kbhit() {
-		// FIXME this can break with keyup events on Windows
-		return timedCheckForInput(0);
+		auto got = getch(true);
+
+		if(got == dchar.init)
+			return false;
+
+		getchBuffer = got;
+		return true;
 	}
 
 	/// Check for input, waiting no longer than the number of milliseconds
@@ -1434,26 +1516,54 @@ struct RealTimeConsoleInput {
 			FD_ZERO(&fs);
 
 			FD_SET(fdIn, &fs);
-			select(fdIn + 1, &fs, null, null, &tv);
+			if(select(fdIn + 1, &fs, null, null, &tv) == -1) {
+				return false;
+			}
 
 			return FD_ISSET(fdIn, &fs);
 		}
 	}
 
-	/// Get one character from the terminal, discarding other
+	/* private */ bool anyInput_internal() {
+		if(inputQueue.length || timedCheckForInput(0))
+			return true;
+		version(Posix)
+			if(interrupted || windowSizeChanged || hangedUp)
+				return true;
+		return false;
+	}
+
+	private dchar getchBuffer;
+
+	/// Get one key press from the terminal, discarding other
 	/// events in the process. Returns dchar.init upon receiving end-of-file.
-	dchar getch() {
+	///
+	/// Be aware that this may return non-character key events, like F1, F2, arrow keys, etc., as private use Unicode characters. Check them against KeyboardEvent.Key if you like.
+	dchar getch(bool nonblocking = false) {
+		if(getchBuffer != dchar.init) {
+			auto a = getchBuffer;
+			getchBuffer = dchar.init;
+			return a;
+		}
+
+		if(nonblocking && !anyInput_internal())
+			return dchar.init;
+
 		auto event = nextEvent();
-		while(event.type != InputEvent.Type.CharacterEvent || event.characterEvent.eventType == CharacterEvent.Type.Released) {
+		while(event.type != InputEvent.Type.KeyboardEvent || event.keyboardEvent.pressed == false) {
 			if(event.type == InputEvent.Type.UserInterruptionEvent)
-				throw new Exception("Ctrl+c");
+				throw new UserInterruptionException();
 			if(event.type == InputEvent.Type.HangupEvent)
-				throw new Exception("Hangup");
+				throw new HangupException();
 			if(event.type == InputEvent.Type.EndOfFileEvent)
 				return dchar.init;
+
+			if(nonblocking && !anyInput_internal())
+				return dchar.init;
+
 			event = nextEvent();
 		}
-		return event.characterEvent.character;
+		return event.keyboardEvent.which;
 	}
 
 	//char[128] inputBuffer;
@@ -1611,11 +1721,14 @@ struct RealTimeConsoleInput {
 			switch(record.EventType) {
 				case KEY_EVENT:
 					auto ev = record.KeyEvent;
+					KeyboardEvent ke;
 					CharacterEvent e;
 					NonCharacterKeyEvent ne;
 
 					e.eventType = ev.bKeyDown ? CharacterEvent.Type.Pressed : CharacterEvent.Type.Released;
 					ne.eventType = ev.bKeyDown ? NonCharacterKeyEvent.Type.Pressed : NonCharacterKeyEvent.Type.Released;
+
+					ke.pressed = ev.bKeyDown ? true : false;
 
 					// only send released events when specifically requested
 					if(!(flags & ConsoleInputFlags.releasedKeys) && !ev.bKeyDown)
@@ -1623,17 +1736,28 @@ struct RealTimeConsoleInput {
 
 					e.modifierState = ev.dwControlKeyState;
 					ne.modifierState = ev.dwControlKeyState;
+					ke.modifierState = ev.dwControlKeyState;
 
 					if(ev.UnicodeChar) {
+						// new style event goes first
+						ke.which = cast(dchar) cast(wchar) ev.UnicodeChar;
+						newEvents ~= InputEvent(ke, terminal);
+
+						// old style event then follows as the fallback
 						e.character = cast(dchar) cast(wchar) ev.UnicodeChar;
 						newEvents ~= InputEvent(e, terminal);
 					} else {
+						// old style event
 						ne.key = cast(NonCharacterKeyEvent.Key) ev.wVirtualKeyCode;
+
+						// new style event. See comment on KeyboardEvent.Key
+						ke.which = cast(KeyboardEvent.Key) (ev.wVirtualKeyCode + 0xF0000);
 
 						// FIXME: make this better. the goal is to make sure the key code is a valid enum member
 						// Windows sends more keys than Unix and we're doing lowest common denominator here
 						foreach(member; __traits(allMembers, NonCharacterKeyEvent.Key))
 							if(__traits(getMember, NonCharacterKeyEvent.Key, member) == ne.key) {
+								newEvents ~= InputEvent(ke, terminal);
 								newEvents ~= InputEvent(ne, terminal);
 								break;
 							}
@@ -1729,18 +1853,36 @@ struct RealTimeConsoleInput {
 		InputEvent[] charPressAndRelease(dchar character) {
 			if((flags & ConsoleInputFlags.releasedKeys))
 				return [
+					// new style event
+					InputEvent(KeyboardEvent(true, character, 0), terminal),
+					InputEvent(KeyboardEvent(false, character, 0), terminal),
+					// old style event
 					InputEvent(CharacterEvent(CharacterEvent.Type.Pressed, character, 0), terminal),
 					InputEvent(CharacterEvent(CharacterEvent.Type.Released, character, 0), terminal),
 				];
-			else return [ InputEvent(CharacterEvent(CharacterEvent.Type.Pressed, character, 0), terminal) ];
+			else return [
+				// new style event
+				InputEvent(KeyboardEvent(true, character, 0), terminal),
+				// old style event
+				InputEvent(CharacterEvent(CharacterEvent.Type.Pressed, character, 0), terminal)
+			];
 		}
 		InputEvent[] keyPressAndRelease(NonCharacterKeyEvent.Key key, uint modifiers = 0) {
 			if((flags & ConsoleInputFlags.releasedKeys))
 				return [
+					// new style event FIXME: when the old events are removed, kill the +0xF0000 from here!
+					InputEvent(KeyboardEvent(true, cast(dchar)(key) + 0xF0000, modifiers), terminal),
+					InputEvent(KeyboardEvent(false, cast(dchar)(key) + 0xF0000, modifiers), terminal),
+					// old style event
 					InputEvent(NonCharacterKeyEvent(NonCharacterKeyEvent.Type.Pressed, key, modifiers), terminal),
 					InputEvent(NonCharacterKeyEvent(NonCharacterKeyEvent.Type.Released, key, modifiers), terminal),
 				];
-			else return [ InputEvent(NonCharacterKeyEvent(NonCharacterKeyEvent.Type.Pressed, key, modifiers), terminal) ];
+			else return [
+				// new style event FIXME: when the old events are removed, kill the +0xF0000 from here!
+				InputEvent(KeyboardEvent(true, cast(dchar)(key) + 0xF0000, modifiers), terminal),
+				// old style event
+				InputEvent(NonCharacterKeyEvent(NonCharacterKeyEvent.Type.Pressed, key, modifiers), terminal)
+			];
 		}
 
 		char[30] sequenceBuffer;
@@ -2072,6 +2214,49 @@ struct RealTimeConsoleInput {
 	}
 }
 
+/// The new style of keyboard event
+struct KeyboardEvent {
+	bool pressed;
+	dchar which;
+	uint modifierState;
+
+	bool isCharacter() {
+		return !(which >= Key.min && which <= Key.max);
+	}
+
+	// these match Windows virtual key codes numerically for simplicity of translation there
+	// but are plus a unicode private use area offset so i can cram them in the dchar
+	// http://msdn.microsoft.com/en-us/library/windows/desktop/dd375731%28v=vs.85%29.aspx
+	/// .
+	enum Key : dchar {
+		escape = 0x1b + 0xF0000, /// .
+		F1 = 0x70 + 0xF0000, /// .
+		F2 = 0x71 + 0xF0000, /// .
+		F3 = 0x72 + 0xF0000, /// .
+		F4 = 0x73 + 0xF0000, /// .
+		F5 = 0x74 + 0xF0000, /// .
+		F6 = 0x75 + 0xF0000, /// .
+		F7 = 0x76 + 0xF0000, /// .
+		F8 = 0x77 + 0xF0000, /// .
+		F9 = 0x78 + 0xF0000, /// .
+		F10 = 0x79 + 0xF0000, /// .
+		F11 = 0x7A + 0xF0000, /// .
+		F12 = 0x7B + 0xF0000, /// .
+		LeftArrow = 0x25 + 0xF0000, /// .
+		RightArrow = 0x27 + 0xF0000, /// .
+		UpArrow = 0x26 + 0xF0000, /// .
+		DownArrow = 0x28 + 0xF0000, /// .
+		Insert = 0x2d + 0xF0000, /// .
+		Delete = 0x2e + 0xF0000, /// .
+		Home = 0x24 + 0xF0000, /// .
+		End = 0x23 + 0xF0000, /// .
+		PageUp = 0x21 + 0xF0000, /// .
+		PageDown = 0x22 + 0xF0000, /// .
+	}
+
+
+}
+
 /// Input event for characters
 struct CharacterEvent {
 	/// .
@@ -2211,6 +2396,7 @@ enum ModifierState : uint {
 struct InputEvent {
 	/// .
 	enum Type {
+		KeyboardEvent, ///.
 		CharacterEvent, ///.
 		NonCharacterKeyEvent, /// .
 		PasteEvent, /// The user pasted some text. Not always available, the pasted text might come as a series of character events instead.
@@ -2237,6 +2423,8 @@ struct InputEvent {
 			throw new Exception("Wrong event type");
 		static if(T == Type.CharacterEvent)
 			return characterEvent;
+		else static if(T == Type.KeyboardEvent)
+			return keyboardEvent;
 		else static if(T == Type.NonCharacterKeyEvent)
 			return nonCharacterKeyEvent;
 		else static if(T == Type.PasteEvent)
@@ -2266,6 +2454,10 @@ struct InputEvent {
 		this(CharacterEvent c, Terminal* p) {
 			t = Type.CharacterEvent;
 			characterEvent = c;
+		}
+		this(KeyboardEvent c, Terminal* p) {
+			t = Type.KeyboardEvent;
+			keyboardEvent = c;
 		}
 		this(NonCharacterKeyEvent c, Terminal* p) {
 			t = Type.NonCharacterKeyEvent;
@@ -2300,6 +2492,7 @@ struct InputEvent {
 		Terminal* term;
 
 		union {
+			KeyboardEvent keyboardEvent;
 			CharacterEvent characterEvent;
 			NonCharacterKeyEvent nonCharacterKeyEvent;
 			PasteEvent pasteEvent;
@@ -2367,10 +2560,12 @@ void main() {
 				auto ev = event.get!(InputEvent.Type.SizeChangedEvent);
 				terminal.writeln(ev);
 			break;
-			case InputEvent.Type.CharacterEvent:
-				auto ev = event.get!(InputEvent.Type.CharacterEvent);
-				terminal.writef("\t%s\n", ev);
-				if(ev.character == 'Q') {
+			case InputEvent.Type.KeyboardEvent:
+				auto ev = event.get!(InputEvent.Type.KeyboardEvent);
+					terminal.writef("\t%s", ev);
+				terminal.writef(" (%s)", cast(KeyboardEvent.Key) ev.which);
+				terminal.writeln();
+				if(ev.which == 'Q') {
 					timeToBreak = true;
 					version(with_eventloop) {
 						import arsd.eventloop;
@@ -2378,10 +2573,14 @@ void main() {
 					}
 				}
 
-				if(ev.character == 'C')
+				if(ev.which == 'C')
 					terminal.clear();
 			break;
-			case InputEvent.Type.NonCharacterKeyEvent:
+			case InputEvent.Type.CharacterEvent: // obsolete
+				auto ev = event.get!(InputEvent.Type.CharacterEvent);
+				terminal.writef("\t%s\n", ev);
+			break;
+			case InputEvent.Type.NonCharacterKeyEvent: // obsolete
 				terminal.writef("\t%s\n", event.get!(InputEvent.Type.NonCharacterKeyEvent));
 			break;
 			case InputEvent.Type.PasteEvent:
@@ -2756,6 +2955,12 @@ class LineGetter {
 		line.assumeSafeAppend();
 	}
 
+	///
+	void deleteToEndOfLine() {
+		while(cursorPosition < line.length)
+			deleteChar();
+	}
+
 	int availableLineLength() {
 		return terminal.width - startOfLineX - cast(int) prompt.length - 1;
 	}
@@ -2900,11 +3105,12 @@ class LineGetter {
 				// FIXME: this should be distinct from an empty line when hit at the beginning
 				return false;
 			//break;
-			case InputEvent.Type.CharacterEvent:
-				if(e.characterEvent.eventType == CharacterEvent.Type.Released)
+			case InputEvent.Type.KeyboardEvent:
+				auto ev = e.keyboardEvent;
+				if(ev.pressed == false)
 					return true;
 				/* Insert the character (unless it is backspace, tab, or some other control char) */
-				auto ch = e.characterEvent.character;
+				auto ch = ev.which;
 				switch(ch) {
 					case 4: // ctrl+d will also send a newline-equivalent 
 					case '\r':
@@ -2957,20 +3163,8 @@ class LineGetter {
 							redraw();
 						}
 					break;
-					default:
+					case KeyboardEvent.Key.LeftArrow:
 						justHitTab = false;
-						addChar(ch);
-						redraw();
-				}
-			break;
-			case InputEvent.Type.NonCharacterKeyEvent:
-				if(e.nonCharacterKeyEvent.eventType == NonCharacterKeyEvent.Type.Released)
-					return true;
-				justHitTab = false;
-				/* Navigation */
-				auto key = e.nonCharacterKeyEvent.key;
-				switch(key) {
-					case NonCharacterKeyEvent.Key.LeftArrow:
 						if(cursorPosition)
 							cursorPosition--;
 						if(!multiLineMode) {
@@ -2980,7 +3174,8 @@ class LineGetter {
 
 						redraw();
 					break;
-					case NonCharacterKeyEvent.Key.RightArrow:
+					case KeyboardEvent.Key.RightArrow:
+						justHitTab = false;
 						if(cursorPosition < line.length)
 							cursorPosition++;
 						if(!multiLineMode) {
@@ -2990,43 +3185,64 @@ class LineGetter {
 
 						redraw();
 					break;
-					case NonCharacterKeyEvent.Key.UpArrow:
+					case KeyboardEvent.Key.UpArrow:
+						justHitTab = false;
 						loadFromHistory(currentHistoryViewPosition + 1);
 						redraw();
 					break;
-					case NonCharacterKeyEvent.Key.DownArrow:
+					case KeyboardEvent.Key.DownArrow:
+						justHitTab = false;
 						loadFromHistory(currentHistoryViewPosition - 1);
 						redraw();
 					break;
-					case NonCharacterKeyEvent.Key.PageUp:
+					case KeyboardEvent.Key.PageUp:
+						justHitTab = false;
 						loadFromHistory(cast(int) history.length);
 						redraw();
 					break;
-					case NonCharacterKeyEvent.Key.PageDown:
+					case KeyboardEvent.Key.PageDown:
+						justHitTab = false;
 						loadFromHistory(0);
 						redraw();
 					break;
-					case NonCharacterKeyEvent.Key.Home:
+					case 1: // ctrl+a does home too in the emacs keybindings
+					case KeyboardEvent.Key.Home:
+						justHitTab = false;
 						cursorPosition = 0;
 						horizontalScrollPosition = 0;
 						redraw();
 					break;
-					case NonCharacterKeyEvent.Key.End:
+					case 5: // ctrl+e from emacs
+					case KeyboardEvent.Key.End:
+						justHitTab = false;
 						cursorPosition = cast(int) line.length;
 						scrollToEnd();
 						redraw();
 					break;
-					case NonCharacterKeyEvent.Key.Insert:
+					case KeyboardEvent.Key.Insert:
+						justHitTab = false;
 						insertMode = !insertMode;
 						// FIXME: indicate this on the UI somehow
 						// like change the cursor or something
 					break;
-					case NonCharacterKeyEvent.Key.Delete:
-						deleteChar();
+					case KeyboardEvent.Key.Delete:
+						justHitTab = false;
+						if(ev.modifierState & ModifierState.control)
+							deleteToEndOfLine();
+						else
+							deleteChar();
+						redraw();
+					break;
+					case 11: // ctrl+k is delete to end of line from emacs
+						justHitTab = false;
+						deleteToEndOfLine();
 						redraw();
 					break;
 					default:
-						/* ignore */
+						justHitTab = false;
+						if(e.keyboardEvent.isCharacter)
+							addChar(ch);
+						redraw();
 				}
 			break;
 			case InputEvent.Type.PasteEvent:
@@ -3060,11 +3276,11 @@ class LineGetter {
 			break;
 			case InputEvent.Type.UserInterruptionEvent:
 				/* I'll take this as canceling the line. */
-				throw new Exception("user canceled"); // FIXME
+				throw new UserInterruptionException();
 			//break;
 			case InputEvent.Type.HangupEvent:
 				/* I'll take this as canceling the line. */
-				throw new Exception("user hanged up"); // FIXME
+				throw new HangupException();
 			//break;
 			default:
 				/* ignore. ideally it wouldn't be passed to us anyway! */
@@ -3137,11 +3353,87 @@ version(Windows) {
 
 
 struct ScrollbackBuffer {
+
+	bool demandsAttention;
+
+	this(string name) {
+		this.name = name;
+	}
+
+	void write(T...)(T t) {
+		import std.conv : text;
+		addComponent(text(t), foreground_, background_, null);
+	}
+
+	void writeln(T...)(T t) {
+		write(t, "\n");
+	}
+
+	void writef(T...)(string fmt, T t) {
+		import std.format: format;
+		write(format(fmt, t));
+	}
+
+	void writefln(T...)(string fmt, T t) {
+		writef(fmt, t, "\n");
+	}
+
+	void clear() {
+		lines = null;
+		clickRegions = null;
+		scrollbackPosition = 0;
+	}
+
+	int foreground_ = Color.DEFAULT, background_ = Color.DEFAULT;
+	void color(int foreground, int background) {
+		this.foreground_ = foreground;
+		this.background_ = background;
+	}
+
+	void addComponent(string text, int foreground, int background, bool delegate() onclick) {
+		if(lines.length == 0) {
+			addLine();
+		}
+		bool first = true;
+		import std.algorithm;
+		foreach(t; splitter(text, "\n")) {
+			if(!first) addLine();
+			first = false;
+			lines[$-1].components ~= LineComponent(t, foreground, background, onclick);
+		}
+	}
+
+	void addLine() {
+		lines ~= Line();
+		if(scrollbackPosition) // if the user is scrolling back, we want to keep them basically centered where they are
+			scrollbackPosition++;
+	}
+
+	void addLine(string line) {
+		lines ~= Line([LineComponent(line)]);
+		if(scrollbackPosition) // if the user is scrolling back, we want to keep them basically centered where they are
+			scrollbackPosition++;
+	}
+
+	void scrollUp(int lines = 1) {
+		scrollbackPosition += lines;
+		//if(scrollbackPosition >= this.lines.length)
+		//	scrollbackPosition = cast(int) this.lines.length - 1;
+	}
+
+	void scrollDown(int lines = 1) {
+		scrollbackPosition -= lines;
+		if(scrollbackPosition < 0)
+			scrollbackPosition = 0;
+	}
+
+
+
 	struct LineComponent {
 		string text;
 		int color = Color.DEFAULT;
 		int background = Color.DEFAULT;
-		void delegate() onclick;
+		bool delegate() onclick; // return true if you need to redraw
 	}
 
 	struct Line {
@@ -3159,11 +3451,23 @@ struct ScrollbackBuffer {
 	Line[] lines;
 	string name;
 
+	int x, y, width, height;
+
 	int scrollbackPosition;
 
-	void drawInto(Terminal* terminal, in int x, in int y, in int width, in int height) {
+	void drawInto(Terminal* terminal, in int x = 0, in int y = 0, int width = 0, int height = 0) {
 		if(lines.length == 0)
 			return;
+
+		if(width == 0)
+			width = terminal.width;
+		if(height == 0)
+			height = terminal.height;
+
+		this.x = x;
+		this.y = y;
+		this.width = width;
+		this.height = height;
 
 		/* We need to figure out how much is going to fit
 		   in a first pass, so we can figure out where to
@@ -3181,6 +3485,10 @@ struct ScrollbackBuffer {
 		}
 
 		Idx firstPartialStartIndex;
+
+		// this is private so I know we can safe append
+		clickRegions.length = 0;
+		clickRegions.assumeSafeAppend();
 
 		// FIXME: should prolly handle \n and \r in here too.
 
@@ -3258,7 +3566,7 @@ struct ScrollbackBuffer {
 				todo = todo[firstPartialStartIndex.cidx .. $];
 			}
 
-			foreach(component; todo) {
+			foreach(ref component; todo) {
 				terminal.color(component.color, component.background);
 				auto towrite = component.text;
 
@@ -3274,6 +3582,7 @@ struct ScrollbackBuffer {
 
 				foreach(idx, dchar ch; towrite) {
 					if(written >= width) {
+						clickRegions ~= ClickRegion(&component, terminal.cursorX, terminal.cursorY, written);
 						terminal.write(towrite[0 .. idx]);
 						towrite = towrite[idx .. $];
 						linePos++;
@@ -3288,13 +3597,17 @@ struct ScrollbackBuffer {
 						written++;
 				}
 
-				if(towrite.length)
+				if(towrite.length) {
+					clickRegions ~= ClickRegion(&component, terminal.cursorX, terminal.cursorY, written);
 					terminal.write(towrite);
+				}
 			}
 
-			if(written < width)
-			foreach(i; written .. width)
-				terminal.write(" ");
+			if(written < width) {
+				terminal.color(Color.DEFAULT, Color.DEFAULT);
+				foreach(i; written .. width)
+					terminal.write(" ");
+			}
 
 			linePos++;
 
@@ -3302,40 +3615,115 @@ struct ScrollbackBuffer {
 				break;
 		}
 
-		if(linePos < height)
-		foreach(i; linePos .. height) {
-			if(i >= 0 && i < height) {
-				terminal.moveTo(x, y + i);
-				foreach(w; 0 .. width)
-					terminal.write(" ");
+		if(linePos < height) {
+			terminal.color(Color.DEFAULT, Color.DEFAULT);
+			foreach(i; linePos .. height) {
+				if(i >= 0 && i < height) {
+					terminal.moveTo(x, y + i);
+					foreach(w; 0 .. width)
+						terminal.write(" ");
+				}
 			}
 		}
 	}
 
-	void addLine(string line) {
-		lines ~= Line([LineComponent(line)]);
-		if(scrollbackPosition) // if the user is scrolling back, we want to keep them basically centered where they are
-			scrollbackPosition++;
+	private struct ClickRegion {
+		LineComponent* component;
+		int xStart;
+		int yStart;
+		int length;
 	}
+	private ClickRegion[] clickRegions;
 
-	void scrollUp(int lines = 1) {
-		scrollbackPosition += lines;
-		//if(scrollbackPosition >= this.lines.length)
-		//	scrollbackPosition = cast(int) this.lines.length - 1;
-	}
+	/// Default event handling for this widget. Call this only after drawing it into a rectangle
+	/// and only if the event ought to be dispatched to it (which you determine however you want;
+	/// you could dispatch all events to it, or perhaps filter some out too)
+	///
+	/// Returns true if it should be redrawn
+	bool handleEvent(InputEvent e) {
+		final switch(e.type) {
+			case InputEvent.Type.KeyboardEvent:
+				auto ev = e.keyboardEvent;
 
-	void scrollDown(int lines = 1) {
-		scrollbackPosition -= lines;
-		if(scrollbackPosition < 0)
-			scrollbackPosition = 0;
-	}
+				demandsAttention = false;
 
-	// does scrolling via wheel and keyboard and also clicks on content
-	void handleEvent() {
+				switch(ev.which) {
+					case KeyboardEvent.Key.UpArrow:
+						scrollUp();
+						return true;
+					case KeyboardEvent.Key.DownArrow:
+						scrollDown();
+						return true;
+					case KeyboardEvent.Key.PageUp:
+						scrollUp(height);
+						return true;
+					case KeyboardEvent.Key.PageDown:
+						scrollDown(height);
+						return true;
+					default:
+						// ignore
+				}
+			break;
+			case InputEvent.Type.MouseEvent:
+				auto ev = e.mouseEvent;
+				if(ev.x >= x && ev.x < x + width && ev.y >= y && ev.y < y + height) {
+					demandsAttention = false;
+					// it is inside our box, so do something with it
+					auto mx = ev.x - x;
+					auto my = ev.y - y;
+
+					if(ev.eventType == MouseEvent.Type.Pressed) {
+						if(ev.buttons & MouseEvent.Button.Left) {
+							foreach(region; clickRegions)
+								if(ev.x >= region.xStart && ev.x < region.xStart + region.length && ev.y == region.yStart)
+									if(region.component.onclick !is null)
+										return region.component.onclick();
+						}
+						if(ev.buttons & MouseEvent.Button.ScrollUp) {
+							scrollUp();
+							return true;
+						}
+						if(ev.buttons & MouseEvent.Button.ScrollDown) {
+							scrollDown();
+							return true;
+						}
+					}
+				} else {
+					// outside our area, free to ignore
+				}
+			break;
+			case InputEvent.Type.SizeChangedEvent:
+				// (size changed might be but it needs to be handled at a higher level really anyway)
+				// though it will return true because it probably needs redrawing anyway.
+				return true;
+			case InputEvent.Type.UserInterruptionEvent:
+				throw new UserInterruptionException();
+			case InputEvent.Type.HangupEvent:
+				throw new HangupException();
+			case InputEvent.Type.EndOfFileEvent:
+				// ignore, not relevant to this
+			break;
+			case InputEvent.Type.CharacterEvent:
+			case InputEvent.Type.NonCharacterKeyEvent:
+				// obsolete, ignore them until they are removed
+			break;
+			case InputEvent.Type.CustomEvent:
+			case InputEvent.Type.PasteEvent:
+				// ignored, not relevant to us
+			break;
+		}
+
+		return false;
 	}
 }
 
 
+class UserInterruptionException : Exception {
+	this() { super("Ctrl+C"); }
+}
+class HangupException : Exception {
+	this() { super("Hup"); }
+}
 
 
 
@@ -3415,3 +3803,32 @@ struct ScrollbackBuffer {
        XK_KP_8           8                                       ESC O x
        XK_KP_9           9                                       ESC O y
 */
+
+version(Demo_kbhit)
+void main() {
+	auto terminal = Terminal(ConsoleOutputType.linear);
+	auto input = RealTimeConsoleInput(&terminal, ConsoleInputFlags.raw);
+
+	int a;
+	char ch = '.';
+	while(a < 1000) {
+		a++;
+		if(a % terminal.width == 0) {
+			terminal.write("\r");
+			if(ch == '.')
+				ch = ' ';
+			else
+				ch = '.';
+		}
+
+		if(input.kbhit())
+			terminal.write(input.getch());
+		else
+			terminal.write(ch);
+
+		terminal.flush();
+
+		import core.thread;
+		Thread.sleep(50.msecs);
+	}
+}

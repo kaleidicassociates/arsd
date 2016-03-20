@@ -1,6 +1,8 @@
 // Please note when compiling on Win64, you need to explicitly list
 // `-Lgdi32.lib -Luser32.lib` on the build command. If you want the Windows
 // subsystem too, use `-L/subsystem:windows -L/entry:mainCRTStartup`
+//
+// On Mac, when compiling with X11, you need XQuartz and -L-L/usr/X11R6/lib passed to dmd.
 /*
 	FIXME:
 
@@ -25,6 +27,8 @@
 
 		moving windows. resizing windows.
 
+		hide cursor, capture cursor, change cursor.
+
 	REMEMBER: simpledisplay does NOT have to do everything! It just needs to make
 	sure the pieces are there to do its job easily and make other jobs possible.
 */
@@ -42,35 +46,36 @@
 	of working efficiently over a remote X link (at least as far as Xlib
 	reasonably allows.)
 
-	simpledisplay depends on `color.d`, which should be available from the
+	simpledisplay depends on [arsd.color|color.d], which should be available from the
 	same place where you got this file. Other than that, however, it has
 	very few dependencies and ones that don't come with the OS and/or the
 	compiler are all opt-in.
 
 	simpledisplay.d's home base is on my arsd repo on Github. The file is:
-	$(L https://github.com/adamdruppe/arsd/blob/master/simpledisplay.d)
+	https://github.com/adamdruppe/arsd/blob/master/simpledisplay.d
 
 	simpledisplay is basically stable. I plan to refactor the internals,
 	and may add new features and fix bugs, but It do not expect to
 	significantly change the API. It has been stable a few years already now.
 
-	Jump_list:$(BR)
+	Jump_list:
 
 	Don't worry, you don't have to read this whole documentation file!
 
-	Check out the $(M Event-example) and $(M Pong-example) to get started quickly.
+	Check out the [#Event-example] and [#Pong-example] to get started quickly.
 
-	The main classes you may want to create are $(M SimpleWindow), $(M Timer),
-	$(M Image), and $(M Sprite).
+	The main classes you may want to create are [SimpleWindow], [Timer],
+	[Image], and [Sprite].
 
-	The main functions you'll want are $(M setClipboardText) and $(M getClipboardText).
+	The main functions you'll want are [setClipboardText] and [getClipboardText].
 
-	There are also platform-specific functions available such as $(M XDisplayConnection)
-	and $(M GetAtom) for X11, among others.
+	There are also platform-specific functions available such as [XDisplayConnection]
+	and [GetAtom] for X11, among others.
 
 	See the examples and topics list below to learn more.
 
-	<h2>About this documentation</h2>
+
+	$(H2 About this documentation)
 
 	The goal here is to give some complete programs as overview examples first, then a look at each major feature with working examples first, then, finally, the inline class and method list will follow.
 	
@@ -271,10 +276,10 @@
 
 	---
 
-	<h2>Topics</h2>
+	$(H2 Topics)
 
-	<h3>$(DDOC_ANCHOR topic-windows) Windows</h3>
-		The $(M SimpleWindow) class is simpledisplay's flagship feature. It represents a single
+	$(H3 $(DDOC_ANCHOR topic-windows) Windows)
+		The $(LREF SimpleWindow) class is simpledisplay's flagship feature. It represents a single
 		window on the user's screen.
 
 		You may create multiple windows, if the underlying platform supports it. You may check
@@ -288,7 +293,7 @@
 		draw function
 		title property
 
-	<h3>$(DDOC_ANCHOR topic-event-loops) Event loops</h3>
+	$(H3 $(DDOC_ANCHOR topic-event-loops) Event loops)
 		The simpledisplay event loop is designed to handle common cases easily while being extensible for more advanced cases, or replaceable by other libraries.
 
 		The most common scenario is creating a window, then calling `window.eventLoop` when setup is complete. You can pass several handlers to the `eventLoop` method right there:
@@ -312,14 +317,14 @@
 
 		It should be possible to integrate simpledisplay with vibe.d as well, though I haven't tried.
 
-	<h3>$(DDOC_ANCHOR topic-notification-areas) Notification area (aka systray) icons</h3>
+	$(H3 $(DDOC_ANCHOR topic-notification-areas) Notification area (aka systray) icons)
 		Notification area icons are currently only implemented on X11 targets. Windows support will come when I need it (or if someone requests it and I have some time to spend on it).
 
-	<h3>$(DDOC_ANCHOR topic-input-handling) Input handling</h3>
+	$(H3 $(DDOC_ANCHOR topic-input-handling) Input handling)
 		There are event handlers for low-level keyboard and mouse events, and higher level handlers for character events.
 
-	<h3>$(DDOC_ANCHOR topic-2d-drawing) 2d Drawing</h3>
-		To draw on your window, use the `window.draw` method. It returns a $(M ScreenPainter) structure with drawing methods.
+	$(H3 $(DDOC_ANCHOR topic-2d-drawing) 2d Drawing)
+		To draw on your window, use the `window.draw` method. It returns a $(LREF ScreenPainter) structure with drawing methods.
 
 		Important: `ScreenPainter` double-buffers and will not actually update the window until its destructor is run. Always ensure the painter instance goes out-of-scope before proceeding. You can do this by calling it inside an event handler, a timer callback, or an small scope inside main. For example:
 
@@ -343,7 +348,7 @@
 
 		At this time, the 2d drawing does not support alpha blending. If you need that, use a 2d OpenGL context instead.
 		FIXME add example of 2d opengl drawing here
-	<h3>$(DDOC_ANCHOR topic-3d-drawing) 3d Drawing (or 2d with OpenGL)</h3>
+	$(H3 $(DDOC_ANCHOR topic-3d-drawing) 3d Drawing (or 2d with OpenGL))
 		simpledisplay can create OpenGL contexts on your window. It works quite differently than 2d drawing.
 
 		Note that it is still possible to draw 2d on top of an OpenGL window, using the `draw` method, though I don't recommend it.
@@ -376,7 +381,7 @@
 		}
 		---
 
-	<h3>$(DDOC_ANCHOR topic-images) Image Displaying</h3>
+	$(H3 $(DDOC_ANCHOR topic-images) Displaying images)
 		You can also load PNG images using my `png.d`.
 
 		---
@@ -394,15 +399,16 @@
 
 		If you find an image file which is a valid png that `arsd.png` fails to load, please let me know. In the mean time of fixing the bug, you can probably convert the file into an easier-to-load format. Be sure to turn OFF png interlacing, as that isn't supported. Other things to try would be making the image smaller, or trying 24 bit truecolor mode with an alpha channel.
 
-	<h3>$(DDOC_ANCHOR topic-sprites) Sprites</h3>
-		The $(M Sprite) class is used to make images on the display server for fast blitting to screen. This is especially important to use to support fast drawing of repeated images on a remote X11 link.
+	$(H3 $(DDOC_ANCHOR topic-sprites) Sprites)
+		The $(LREF Sprite) class is used to make images on the display server for fast blitting to screen. This is especially important to use to support fast drawing of repeated images on a remote X11 link.
 
-	<h3>$(DDOC_ANCHOR topic-clipboard) Clipboard</h3>
-		The free functions $(M getClipboardText) and $(M setClipboardText) consist of simpledisplay's cross-platform clipboard support at this time.
+	$(H3 $(DDOC_ANCHOR topic-clipboard) Clipboard)
+		The free functions $(LREF getClipboardText) and $(LREF setClipboardText) consist of simpledisplay's cross-platform clipboard support at this time.
 
 		It also has helpers for handling X-specific events.
-	<h3>$(DDOC_ANCHOR topic-timers) Timers</h3>
-		There are two timers in simpledisplay: one is the pulse timeout you can set on the call to `window.eventLoop`, and the other is a customizable class, $(M Timer).
+
+	$(H3 $(DDOC_ANCHOR topic-timers) Timers)
+		There are two timers in simpledisplay: one is the pulse timeout you can set on the call to `window.eventLoop`, and the other is a customizable class, $(LREF Timer).
 
 		The pulse timeout is used by setting a non-zero interval as the first argument to `eventLoop` function and adding a zero-argument delegate to handle the pulse.
 
@@ -430,7 +436,7 @@
 
 		The `Timer` class works similarly, but is created separately from the event loop. (It still fires through the event loop, though.) You may make as many instances of `Timer` as you wish.
 
-		The pulse timer and instances of the $(M Timer) class may be combined at will.
+		The pulse timer and instances of the $(LREF Timer) class may be combined at will.
 
 		---
 			import simpledisplay;
@@ -448,17 +454,20 @@
 
 		Timers are currently only implemented on Windows, using `SetTimer` and Linux, using `timerfd_create`. These deliver timeout messages through your application event loop.
 
-	<h3>$(DDOC_ANCHOR topic-os-helpers) OS-specific helpers</h3>
+	$(H3 $(DDOC_ANCHOR topic-os-helpers) OS-specific helpers)
 		simpledisplay carries a lot of code to help implement itself without extra dependencies, and much of this code is available for you too, so you may extend the functionality yourself.
 
 		See also: `xwindows.d` from my github.
-	<h3>$(DDOC_ANCHOR topic-os-extension) Extending with OS-specific functionality</h3>
+
+	$(H3 $(DDOC_ANCHOR topic-os-extension) Extending with OS-specific functionality)
 		`handleNativeEvent` and `handleNativeGlobalEvent`.
-	<h3>$(DDOC_ANCHOR topic-integration) Integration with other libraries</h3>
+
+	$(H3 $(DDOC_ANCHOR topic-integration) Integration with other libraries)
 		Integration with a third-party event loop is possible.
 
 		On Linux, you might want to support both terminal input and GUI input. You can do this by using simpledisplay together with eventloop.d and terminal.d.
-	<h3>$(DDOC_ANCHOR topic-guis) GUI widgets</h3>
+
+	$(H3 $(DDOC_ANCHOR topic-guis) GUI widgets)
 		simpledisplay does not provide GUI widgets such as text areas, buttons, checkboxes, etc. It only gives basic windows, the ability to draw on it, receive input from it, and access native information for extension. You may write your own gui widgets with these, but you don't have to because I already did for you!
 
 		Download `minigui.d` from my github repository and add it to your project. minigui builds these things on top of simpledisplay and offers its own Window class (and subclasses) to use that wrap SimpleWindow, adding a new event and drawing model that is hookable by subwidgets, represented by their own classes.
@@ -467,7 +476,7 @@
 
 		minigui still needs a lot of work to be finished at this time, but it already offers a number of useful classes.
 
-	<h2>$(DDOC_ANCHOR developer-notes) Developer notes</h2>
+	$(H2 $(DDOC_ANCHOR developer-notes) Developer notes)
 
 	I don't have a Mac, so that code isn't maintained. I would like to have a Cocoa
 	implementation though.
@@ -499,7 +508,7 @@
 	declaration you're interested in, like `class SimpleWindow` using your editor's search
 	function, then look at one piece at a time.
 
-	<h2>$(DDOC_ANCHOR about-the-author) Meta</h2>
+	$(H2 $(DDOC_ANCHOR about-the-author) Meta)
 
 	Authors: Adam D. Ruppe with the help of others. If you need help, please email me with
 	destructionator@gmail.com or find me on IRC. Our channel is #d on Freenode. I go by
@@ -508,7 +517,7 @@
 	I live in the eastern United States, so I will most likely not be around at night in
 	that US east timezone.
 
-	License: Copyright Adam D. Ruppe, 2011-2015. Released under the Boost Software License.
+	License: Copyright Adam D. Ruppe, 2011-2016. Released under the Boost Software License.
 
 	Building documentation: You may wish to use the `arsd.ddoc` file from my github with
 	building the documentation for simpledisplay yourself. It will give it a bit more style.
@@ -637,9 +646,11 @@ else version(X11)
 else
 	static assert(0);
 
+
 /++
-	After selecting a type from $(M WindowTypes), you may further customize
+	After selecting a type from $(LREF WindowTypes), you may further customize
 	its behavior by setting one or more of these flags.
+
 
 	The different window types have different meanings of `normal`. If the
 	window type already is a good match for what you want to do, you should
@@ -658,8 +669,9 @@ enum WindowFlags : int {
 	When creating a window, you can pass a type to SimpleWindow's constructor,
 	then further customize the window by changing `WindowFlags`.
 
+
 	This list is based on the EMWH spec for X11.
-	($L http://standards.freedesktop.org/wm-spec/1.4/ar01s05.html#idm139704063786896)
+	$(L http://standards.freedesktop.org/wm-spec/1.4/ar01s05.html#idm139704063786896)
 +/
 enum WindowTypes : int {
 	/// An ordinary application window.
@@ -679,8 +691,37 @@ enum WindowTypes : int {
 }
 
 
+private __gshared ushort sdpyOpenGLContextVersion = 0; // default: use legacy call
+private __gshared bool sdpyOpenGLContextCompatible = true; // default: allow "deprecated" features
+
+/**
+	Set OpenGL context version to use. This has no effect on non-OpenGL windows.
+	You may want to change context version if you want to use advanced shaders or
+	other modern OpenGL techinques. This setting doesn't affect already created
+	windows. You may use version 2.1 as your default, which should be supported
+	by any box since 2006, so seems to be a reasonable choice.
+
+	Note that by default version is set to `0`, which forces SimpleDisplay to use
+	old context creation code without any version specified. This is the safest
+	way to init OpenGL, but it may not give you access to advanced features.
+
+	See available OpenGL versions here: $(L https://en.wikipedia.org/wiki/OpenGL).
+*/
+void setOpenGLContextVersion() (ubyte hi, ubyte lo) { sdpyOpenGLContextVersion = cast(ushort)(hi<<8|lo); }
+
+/**
+	Set OpenGL context mode. Modern (3.0+) OpenGL versions deprecated old fixed
+	pipeline functions, and without "compatible" mode you won't be able to use
+	your old non-shader-based code with such contexts. By default SimpleDisplay
+	creates compatible context, so you can gradually upgrade your OpenGL code if
+	you want to (or leave it as is, as it should "just work").
+*/
+@property void openGLContextCompatible() (bool v) { sdpyOpenGLContextCompatible = v; }
+
+
 /++
 	The flagship window class.
+
 
 	SimpleWindow tries to make ordinary windows very easy to create and use without locking you
 	out of more advanced or complex features of the underlying windowing system.
@@ -707,15 +748,15 @@ class SimpleWindow : CapableOfHandlingNativeEvent {
 
 		width = the width of the window's client area, in pixels
 		height = the height of the window's client area, in pixels
-		title = the title of the window (seen in the title bar, taskbar, etc.). You can change it after construction with the $(M SimpleWindow._title) property.
-		opengl = $(M OpenGlOptions) are yes and no. If yes, it creates an OpenGL context on the window.
+		title = the title of the window (seen in the title bar, taskbar, etc.). You can change it after construction with the $(LREF SimpleWindow._title) property.
+		opengl = $(LREF OpenGlOptions) are yes and no. If yes, it creates an OpenGL context on the window.
 			$(TIP On Windows, you need to compile with `-version=with_opengl` to enable `OpenGlOptions.yes`)
-		resizable = $(M Resizablity) has three options:
+		resizable = $(LREF Resizablity) has three options:
 			$(P `allowResizing`, which allows the window to be resized by the user. The `windowResized` delegate will be called when the size is changed.)
 			$(P `fixedSize` will not allow the user to resize the window.)
 			$(P `automaticallyScaleIfPossible` will allow the user to resize, but will still present the original size to the API user. The contents you draw will be scaled to the size the user chose. If this scaling is not efficient, the window will be fixed size. The `windowResized` event handler will never be called. This is the default.)
 		windowType = The type of window you want to make.
-		customizationFlags = A way to make a window without a border, always on top, skip taskbar, and more. Do not use this if one of the pre-defined $(M WindowTypes), given in the `windowType` argument, is a good match for what you need.
+		customizationFlags = A way to make a window without a border, always on top, skip taskbar, and more. Do not use this if one of the pre-defined $(LREF WindowTypes), given in the `windowType` argument, is a good match for what you need.
 		parent = the parent window, if applicable
 	+/
 	this(int width = 640, int height = 480, string title = null, OpenGlOptions opengl = OpenGlOptions.no, Resizablity resizable = Resizablity.automaticallyScaleIfPossible, WindowTypes windowType = WindowTypes.normal, int customizationFlags = WindowFlags.normal, SimpleWindow parent = null) {
@@ -735,7 +776,7 @@ class SimpleWindow : CapableOfHandlingNativeEvent {
 
 
 	/++
-		Creates a window based on the given $(M Image). It's client area
+		Creates a window based on the given $(LREF Image). It's client area
 		width and height is equal to the image. (A window's client area
 		is the drawable space inside; it excludes the title bar, etc.)
 	   
@@ -766,8 +807,26 @@ class SimpleWindow : CapableOfHandlingNativeEvent {
 		_suppressDestruction = true; // so it doesn't try to close
 	}
 
+	/// This will be called when WM wants to close your window (i.e. user clicked "close" icon, for example).
+	/// You'll have to call `close()` manually if you set this delegate.
+	version(X11) void delegate () closeQuery;
+
+	/// This will be called when window visibility was changed.
+	void delegate (bool becomesVisible) visibilityChanged;
+
+	/// This will be called when window becomes visible for the first time.
+	/// You can do OpenGL initialization here. Note that in X11 you can't call
+	/// `setAsCurrentOpenGlContext()` right after window creation, or X11 may
+	/// fail to send reparent and map events (hit that with proprietary NVidia drivers).
+	private bool _visibleForTheFirstTimeCalled;
+	void delegate () visibleForTheFirstTime;
+
 	/// Returns true if the window has been closed.
 	final @property bool closed() { return _closed; }
+
+	private bool _visible;
+	/// Returns true if the window is visible (mapped).
+	final @property bool visible() { return _visible; }
 
 	/// Closes the window. If there are no more open windows, the event loop will terminate.
 	void close() {
@@ -783,6 +842,16 @@ class SimpleWindow : CapableOfHandlingNativeEvent {
 	/// Alias for `hidden = true`
 	void hide() {
 		hidden = true;
+	}
+
+	/// Hide cursor when it enters the window.
+	void hideCursor() {
+		if (!_closed) impl.hideCursor();
+	}
+
+	/// Don't hide cursor when it enters the window.
+	void showCursor() {
+		if (!_closed) impl.showCursor();
 	}
 
 	private bool _hidden;
@@ -821,7 +890,7 @@ class SimpleWindow : CapableOfHandlingNativeEvent {
 				handlePulse = handler;
 			} else static if(__traits(compiles, handleMouseEvent = handler)) {
 				handleMouseEvent = handler;
-			} else static assert(0, "I can't use this event handler " ~ typeof(handler).stringof ~ "\nNote: if you want to capture keycode events, this recently changed to (KeyEvent event) instead of the old (int code) and second draft, (int code, bool pressed), key, character, and pressed are members of KeyEvent.");
+			} else static assert(0, "I can't use this event handler " ~ typeof(handler).stringof ~ "\nHave you tried using the delegate keyword?");
 		}
 	}
 
@@ -842,7 +911,7 @@ class SimpleWindow : CapableOfHandlingNativeEvent {
 		Be sure to call this in a limited scope because your changes will not
 		actually appear on the window until ScreenPainter's destructor runs.
 
-		Returns: an instance of $(M ScreenPainter), which has the drawing methods
+		Returns: an instance of $(LREF ScreenPainter), which has the drawing methods
 		on it to draw on this window.
 	+/
 	ScreenPainter draw() {
@@ -877,16 +946,55 @@ class SimpleWindow : CapableOfHandlingNativeEvent {
 		/// Put your code in here that you want to be drawn automatically when your window is uncovered. Set a handler here *before* entering your event loop any time you pass `OpenGlOptions.yes` to the constructor. Ideally, you will set this delegate immediately after constructing the `SimpleWindow`.
 		void delegate() redrawOpenGlScene;
 
+		/// This will allow you to change OpenGL vsync state.
+		final @property void vsync (bool wait) {
+		  if (this._closed) return; // window may be closed, but timer is still firing; avoid GLXBadDrawable error
+		  version(X11) {
+		    setAsCurrentOpenGlContext();
+		    glxSetVSync(display, impl.window, wait);
+		  }
+		}
+
+		/// "Lock" this window handle, to do multithreaded synchronization. You probably won't need
+		/// to call this, as it's not recommended to share window between threads.
+		private shared int lockCount = 0;
+		void mtLock () {
+			version(X11) {
+				XLockDisplay(this.display);
+			}
+		}
+
+		/// "Unlock" this window handle, to do multithreaded synchronization. You probably won't need
+		/// to call this, as it's not recommended to share window between threads.
+		void mtUnlock () {
+			version(X11) {
+				XUnlockDisplay(this.display);
+			}
+		}
+
+		/// Set this to `false` if you don't need to do `glFinish()` after `swapOpenGlBuffers()`.
+		/// Note that at least NVidia proprietary driver may segfault if you will modify texture fast
+		/// enough without waiting 'em to finish their frame bussiness.
+		bool useGLFinish = true;
+
 		// FIXME: it should schedule it for the end of the current iteration of the event loop...
 		/// call this to invoke your delegate. It automatically sets up the context and flips the buffer. If you need to redraw the scene in response to an event, call this.
 		void redrawOpenGlSceneNow() {
+		  version(X11) if (!this._visible) return; // no need to do this if window is invisible
+			if (this._closed) return; // window may be closed, but timer is still firing; avoid GLXBadDrawable error
+			if(redrawOpenGlScene is null)
+				return;
+
+			this.mtLock();
+			scope(exit) this.mtUnlock();
+
 			this.setAsCurrentOpenGlContext();
 
-			if(redrawOpenGlScene !is null)
-				redrawOpenGlScene();
+			redrawOpenGlScene();
 
 			this.swapOpenGlBuffers();
-
+			// at least nvidia proprietary crap segfaults on exit if you won't do this and will call glTexSubImage2D() too fast; no, `glFlush()` won't work.
+			if (useGLFinish) glFinish();
 		}
 
 
@@ -897,27 +1005,59 @@ class SimpleWindow : CapableOfHandlingNativeEvent {
 				if(glXMakeCurrent(display, impl.window, impl.glc) == 0)
 					throw new Exception("glXMakeCurrent");
 			} else version(Windows) {
-        			wglMakeCurrent(ghDC, ghRC); 
+				if (!wglMakeCurrent(ghDC, ghRC))
+					throw new Exception("wglMakeCurrent"); // let windows users suffer too
+			}
+		}
+
+		/// Makes all gl* functions target this window until changed. This is only valid if you passed `OpenGlOptions.yes` to the constructor.
+		/// This doesn't throw, returning success flag instead.
+		bool setAsCurrentOpenGlContextNT() nothrow {
+			assert(openglMode == OpenGlOptions.yes);
+			version(X11) {
+				return (glXMakeCurrent(display, impl.window, impl.glc) != 0);
+			} else version(Windows) {
+				return wglMakeCurrent(ghDC, ghRC);
+			}
+		}
+
+		/// Releases OpenGL context, so it can be reused in, for example, different thread. This is only valid if you passed `OpenGlOptions.yes` to the constructor.
+		/// This doesn't throw, returning success flag instead.
+		bool releaseCurrentOpenGlContext() nothrow {
+			assert(openglMode == OpenGlOptions.yes);
+			version(X11) {
+				return (glXMakeCurrent(display, 0, null) != 0);
+			} else version(Windows) {
+				return wglMakeCurrent(ghDC, null);
 			}
 		}
 
 		/++
-			simpledisplay always uses double buffering. this swaps the OpenGL buffers.
+			simpledisplay always uses double buffering, usually automatically. This
+			manually swaps the OpenGL buffers.
+
+
 			You should not need to call this yourself because simpledisplay will do it
 			for you after calling your `redrawOpenGlScene`.
+
+			Remember that this may throw an exception, which you can catch in a multithreaded
+			application to keep your thread from dying from an unhandled exception.
 		+/
 		void swapOpenGlBuffers() {
 			assert(openglMode == OpenGlOptions.yes);
 			version(X11) {
-				glXSwapBuffers(XDisplayConnection.get, impl.window);
+				if (!this._visible) return; // no need to do this if window is invisible
+				if (this._closed) return; // window may be closed, but timer is still firing; avoid GLXBadDrawable error
+				glXSwapBuffers(display, impl.window);
 			} else version(Windows) {
-        			SwapBuffers(ghDC);
+				SwapBuffers(ghDC);
 			}
 		}
 	}
 
 	/++
 		Set the window title, which is visible on the window manager title bar, operating system taskbar, etc.
+
 
 		---
 			auto window = new SimpleWindow(100, 100, "First title");
@@ -927,7 +1067,22 @@ class SimpleWindow : CapableOfHandlingNativeEvent {
 		You may call this function at any time.
 	+/
 	@property void title(string title) {
+		_title = title;
 		impl.setTitle(title);
+	}
+
+	private string _title;
+
+	/// Gets the title
+	@property string title() {
+		return _title;
+		/*
+		version(Windows) {
+
+		} else version(X11) {
+
+		} else static assert(0);
+		*/
 	}
 
 	/// Set the icon that is seen in the title bar or taskbar, etc., for the user.
@@ -1099,6 +1254,9 @@ class SimpleWindow : CapableOfHandlingNativeEvent {
 
 // basic functions to make timers
 /**
+	A timer that will trigger your function on a given interval.
+
+
 	You create a timer with an interval and a callback. It will continue
 	to fire on the interval until it is destroyed.
 
@@ -1638,7 +1796,13 @@ version(Windows) {
 
 
 
-/// ScreenPainter operations can use different operations to combine the color with the color on screen.
+/++
+	$(LREF ScreenPainter) operations can use different operations to combine the color with the color on screen.
+
+	See_Also:
+		$(LREF ScreenPainter)
+		$(LREF ScreenPainter.rasterOp)
++/
 enum RasterOp {
 	normal, /// Replaces the pixel.
 	xor, /// Uses bitwise xor to draw.
@@ -1673,7 +1837,8 @@ version(without_opengl) {
 	}
 } else {
 	/++
-		Determines if you want an OpenGL context created on the new window
+		Determines if you want an OpenGL context created on the new window.
+
 
 		Compile with `-version=with_opengl` on Windows if you want to use `yes`. See more: <a href="#topics-3d">in the 3d topic</a>.
 
@@ -1739,19 +1904,19 @@ public import arsd.color; // no longer stand alone... :-( but i need a common ty
 	Keyboard press and release events
 +/
 struct KeyEvent {
-	/// see table below. Always use the symbolic names, even for ASCII characters, since the actual numbers vary across platforms. See $(M Key)
+	/// see table below. Always use the symbolic names, even for ASCII characters, since the actual numbers vary across platforms. See $(LREF Key)
 	Key key;
 	uint hardwareCode; /// A platform and hardware specific code for the key
 	bool pressed; /// true if the key was just pressed, false if it was just released. note: released events aren't always sent...
 
 	dchar character; ///
 
-	uint modifierState; /// see enum $(M ModifierState). They are bitwise combined together.
+	uint modifierState; /// see enum $(LREF ModifierState). They are bitwise combined together.
 
 	SimpleWindow window; /// associated Window
 }
 
-/// Type of a $(M MouseEvent)
+/// Type of a $(LREF MouseEvent)
 enum MouseEventType : int {
 	motion = 0, /// The mouse moved inside the window
 	buttonPressed = 1, /// A mouse button was pressed or the wheel was spun
@@ -1763,7 +1928,7 @@ enum MouseEventType : int {
 	Listen for this on your event listeners if you are interested in mouse action.
 +/
 struct MouseEvent {
-	MouseEventType type; /// movement, press, release, double click. See $(M MouseEventType)
+	MouseEventType type; /// movement, press, release, double click. See $(LREF MouseEventType)
 
 	int x; /// Current X position of the cursor when the event fired, relative to the upper-left corner of the window, reported in pixels. (0, 0) is the upper left, (window.width - 1, window.height - 1) is the lower right corner of the window.
 	int y; /// Current Y position of the cursor when the event fired.
@@ -1771,17 +1936,17 @@ struct MouseEvent {
 	int dx; /// Change in X position since last report
 	int dy; /// Change in Y position since last report
 
-	MouseButton button; /// See $(M MouseButton)
-	int modifierState; /// See $(M ModifierState)
+	MouseButton button; /// See $(LREF MouseButton)
+	int modifierState; /// See $(LREF ModifierState)
 
 	SimpleWindow window; /// The window in which the event happened.
 }
 
-//// This gives a few more options to drawing lines and such
+/// This gives a few more options to drawing lines and such
 struct Pen {
 	Color color; /// the foreground color
 	int width = 1; /// width of the line
-	Style style; /// See $(M Style) FIXME: not implemented
+	Style style; /// See $(LREF Style) FIXME: not implemented
 /+
 // From X.h
 
@@ -1827,14 +1992,15 @@ struct Pen {
 
 /++
 	Represents an in-memory image in the format that the GUI expects, but with its raw data available to your program.
-	
+
+
 	On Windows, this means a device-independent bitmap. On X11, it is an XImage.
 
 	$(NOTE If you are writing platform-aware code and need to know low-level details, uou may check `if(Image.impl.xshmAvailable)` to see if MIT-SHM is used on X11 targets to draw `Image`s and `Sprite`s. Use `static if(UsingSimpledisplayX11)` to determine if you are compiling for an X11 target.)
 
 	Drawing an image to screen is not necessarily fast, but applying algorithms to draw to the image itself should be fast. An `Image` is also the first step in loading and displaying images loaded from files.
 
-	If you intend to draw an image to screen several times, you will want to convert it into a $(M Sprite).
+	If you intend to draw an image to screen several times, you will want to convert it into a $(LREF Sprite).
 
 	$(IMPORTANT `Image` may represent a scarce, shared resource that persists across process termination, and should be disposed of properly. On X11, it uses the MIT-SHM extension, if available, which uses shared memory handles with the X server, which is a long-lived process that holds onto them after your program terminates if you don't free it.
 
@@ -2104,9 +2270,14 @@ void displayImage(Image image, SimpleWindow win = null) {
 	}
 }
 
-/// Most functions use the outlineColor instead of taking a color themselves.
-/// ScreenPainter is reference counted and draws its buffer to the screen when its
-/// final reference goes out of scope.
+/**
+	The 2D drawing proxy.
+
+
+	Most functions use the outlineColor instead of taking a color themselves.
+	ScreenPainter is reference counted and draws its buffer to the screen when its
+	final reference goes out of scope.
+*/
 struct ScreenPainter {
 	SimpleWindow window;
 	this(SimpleWindow window, NativeWindowHandle handle) {
@@ -2340,6 +2511,7 @@ struct ScreenPainter {
 	Sprites are optimized for fast drawing on the screen, but slow for direct pixel
 	access. They are best for drawing a relatively unchanging image repeatedly on the screen.
 
+
 	On X11, this corresponds to an `XPixmap`. On Windows, it still uses a bitmap,
 	though I'm not sure that's ideal and the implementation might change.
 
@@ -2490,8 +2662,12 @@ class Sprite {
 
 /// Flushes any pending gui buffers. Necessary if you are using with_eventloop with X - flush after you create your windows but before you call loop()
 void flushGui() {
-	version(X11)
-		XFlush(XDisplayConnection.get());
+	version(X11) {
+		auto dpy = XDisplayConnection.get();
+		XLockDisplay(dpy);
+		scope(exit) XUnlockDisplay(dpy);
+		XFlush(dpy);
+	}
 }
 
 // Internal
@@ -3340,6 +3516,16 @@ version(Windows) {
 
 	// Mix this into the SimpleWindow class
 	mixin template NativeSimpleWindowImplementation() {
+		int curHidden = 0; // counter
+
+		void hideCursor () {
+			++curHidden;
+		}
+
+		void showCursor () {
+			--curHidden;
+		}
+
 		ScreenPainter getPainter() {
 			return ScreenPainter(this, hwnd);
 		}
@@ -3483,6 +3669,11 @@ version(Windows) {
 					wind.handleMouseEvent(mouse);
 			}
 
+			// hide cursor in client area if necessary
+			if (wind.curHidden > 0 && msg == WM_SETCURSOR && cast(ushort)lParam == 1/*HTCLIENT*/) {
+				SetCursor(null);
+				return 1;
+			}
 
 			switch(msg) {
 				case WM_CHAR:
@@ -3677,6 +3868,14 @@ version(Windows) {
 					return cast(typeof(return)) //GetStockObject(NULL_BRUSH);
 					GetSysColorBrush(COLOR_3DFACE);
 				break;
+				case WM_SHOWWINDOW:
+					this._visible = (wParam != 0);
+					if (!this._visibleForTheFirstTimeCalled) {
+						this._visibleForTheFirstTimeCalled = true;
+						if (this.visibleForTheFirstTime !is null) this.visibleForTheFirstTime();
+					}
+					if (this.visibilityChanged !is null) this.visibilityChanged(this._visible);
+					break;
 				case WM_PAINT: {
 					BITMAP bm;
 					PAINTSTRUCT ps;
@@ -3902,7 +4101,7 @@ version(X11) {
 				font = XLoadQueryFont(display, xfontstr.ptr);
 				// bitstream is a pretty nice font, but if it fails, fixed is pretty reliable and not bad either
 				if(font is null)
-					font = XLoadQueryFont(display, "-*-fixed-medium-r-*-*-12-*-*-*-*-*-*-*".ptr);
+					font = XLoadQueryFont(display, "-*-fixed-medium-r-*-*-13-*-*-*-*-*-*-*".ptr);
 
 				fontAttempted = true;
 			}
@@ -4173,6 +4372,28 @@ version(X11) {
 	/// Platform-specific for X11. A singleton class (well, all its methods are actually static... so more like a namespace) wrapping a Display*
 	class XDisplayConnection {
 		private static Display* display;
+    private static XIM xim;
+
+    // Do you want to know why do we need all this horrible-looking code? See comment at the bottom.
+    private static void createXIM () {
+      import core.stdc.locale : setlocale, LC_ALL;
+      import core.stdc.stdio : stderr, fprintf;
+      import core.stdc.stdlib : free;
+      import core.stdc.string : strdup;
+
+      static immutable string[] mtry = [ null, "@im=local", "@im=" ];
+
+      auto olocale = strdup(setlocale(LC_ALL, null));
+      setlocale(LC_ALL, (sdx_isUTF8Locale ? "" : "en_US.UTF-8"));
+      scope(exit) { setlocale(LC_ALL, olocale); free(olocale); }
+
+      //fprintf(stderr, "opening IM...\n");
+      foreach (string s; mtry) {
+        if (s.length) XSetLocaleModifiers(s.ptr); // it's safe, as `s` is string literal
+        if ((xim = XOpenIM(display, null, null, null)) !is null) return;
+      }
+      fprintf(stderr, "createXIM: XOpenIM failed!\n");
+    }
 
 		///
 		static Display* get() {
@@ -4180,6 +4401,9 @@ version(X11) {
 				display = XOpenDisplay(null);
 				if(display is null)
 					throw new Exception("Unable to open X display");
+				Bool sup;
+				XkbSetDetectableAutoRepeat(display, 1, &sup); // so we will not receive KeyRelease until key is really released
+				createXIM();
 				version(with_eventloop) {
 					import arsd.eventloop;
 					addFileEventListeners(display.fd, &eventListener, null, null);
@@ -4192,6 +4416,8 @@ version(X11) {
 		version(with_eventloop) {
 			import arsd.eventloop;
 			static void eventListener(OsFileHandle fd) {
+				//this.mtLock();
+				//scope(exit) this.mtUnlock();
 				while(XPending(display))
 					doXNextEvent(display);
 			}
@@ -4224,7 +4450,7 @@ version(X11) {
 			if(!xshmQueryCompleted) {
 				int i1, i2, i3;
 				xshmQueryCompleted = true;
-				_xshmAvailable = XQueryExtension(XDisplayConnection.get(), "MIT-SHM", &i1, &i2, &i3);
+				_xshmAvailable = XQueryExtension(XDisplayConnection.get(), "MIT-SHM", &i1, &i2, &i3) != 0;
 			}
 			return _xshmAvailable;
 		}
@@ -4341,6 +4567,9 @@ version(X11) {
 		Display* display;
 
 		Pixmap buffer;
+		XIC xic; // input context
+		int curHidden = 0; // counter
+		Cursor blankCurPtr = 0;
 
 		void delegate(XEvent) setSelectionHandler;
 		void delegate(in char[]) getSelectionHandler;
@@ -4350,6 +4579,23 @@ version(X11) {
 
 		ScreenPainter getPainter() {
 			return ScreenPainter(this, window);
+		}
+
+		void hideCursor () {
+			if (curHidden++ == 0) {
+				if (!blankCurPtr) {
+					static const(char)[1] cmbmp = 0;
+					XColor blackcolor = { 0, 0, 0, 0, 0, 0 };
+					Pixmap pm = XCreateBitmapFromData(display, window, cmbmp.ptr, 1, 1);
+					blankCurPtr = XCreatePixmapCursor(display, pm, pm, &blackcolor, &blackcolor, 0, 0);
+					XFreePixmap(display, pm);
+				}
+				XDefineCursor(display, window, blankCurPtr);
+			}
+		}
+
+		void showCursor () {
+			if (--curHidden == 0) XUndefineCursor(display, window);
 		}
 
 		void setTitle(string title) {
@@ -4369,11 +4615,54 @@ version(X11) {
 			version(without_opengl) {}
 			else {
 				if(opengl == OpenGlOptions.yes) {
-					static immutable GLint[] attrs = [ GLX_RGBA, GLX_DEPTH_SIZE, 24, GLX_DOUBLEBUFFER, None ];
-					auto vi = glXChooseVisual(display, 0, attrs.ptr);
-					if(vi is null) throw new Exception("no open gl visual found");
+					glxInitOtherFunctions(); // load some OpenGL functions; it doesn't hurt to call this repeatedly
 
-    					XSetWindowAttributes swa; 
+					GLXFBConfig fbconf = null;
+					XVisualInfo* vi = null;
+					bool useLegacy = false;
+					if (sdpyOpenGLContextVersion != 0 && glXCreateContextAttribsARB !is null) {
+						int[23] visualAttribs = [
+							GLX_X_RENDERABLE , 1/*True*/,
+							GLX_DRAWABLE_TYPE, GLX_WINDOW_BIT,
+							GLX_RENDER_TYPE  , GLX_RGBA_BIT,
+							GLX_X_VISUAL_TYPE, GLX_TRUE_COLOR,
+							GLX_RED_SIZE     , 8,
+							GLX_GREEN_SIZE   , 8,
+							GLX_BLUE_SIZE    , 8,
+							GLX_ALPHA_SIZE   , 8,
+							GLX_DEPTH_SIZE   , 24,
+							GLX_STENCIL_SIZE , 8,
+							GLX_DOUBLEBUFFER , 1/*True*/,
+							0/*None*/,
+						];
+						int fbcount;
+						GLXFBConfig* fbc = glXChooseFBConfig(display, screen, visualAttribs.ptr, &fbcount);
+						if (fbcount == 0) {
+							useLegacy = true; // try to do at least something
+						} else {
+							// pick the FB config/visual with the most samples per pixel
+							int bestidx = -1, bestns = -1;
+							foreach (int fbi; 0..fbcount) {
+								int sb, samples;
+								glXGetFBConfigAttrib(display, fbc[fbi], GLX_SAMPLE_BUFFERS, &sb);
+								glXGetFBConfigAttrib(display, fbc[fbi], GLX_SAMPLES, &samples);
+								if (bestidx < 0 || sb && samples > bestns) { bestidx = fbi; bestns = samples; }
+							}
+							//{ import core.stdc.stdio; printf("found gl visual with %d samples\n", bestns); }
+							fbconf = fbc[bestidx];
+							// Be sure to free the FBConfig list allocated by glXChooseFBConfig()
+							XFree(fbc);
+							vi = glXGetVisualFromFBConfig(display, fbconf);
+						}
+					}
+					if (vi is null || useLegacy) {
+						static immutable GLint[] attrs = [ GLX_RGBA, GLX_DEPTH_SIZE, 24, GLX_DOUBLEBUFFER, None ];
+						vi = glXChooseVisual(display, 0, attrs.ptr);
+						useLegacy = true;
+					}
+					if (vi is null) throw new Exception("no open gl visual found");
+
+					XSetWindowAttributes swa;
 					auto root = RootWindow(display, screen);
 					swa.colormap = XCreateColormap(display, root, vi.visual, AllocNone);
 
@@ -4381,7 +4670,27 @@ version(X11) {
 						0, 0, width, height,
 						0, vi.depth, 1 /* InputOutput */, vi.visual, CWColormap, &swa);
 
-					glc = glXCreateContext(display, vi, null, GL_TRUE);
+					// now try to use `glXCreateContextAttribsARB()` if it's here
+					if (!useLegacy) {
+						// request fairly advanced context, even with stencil buffer!
+						int[9] contextAttribs = [
+							GLX_CONTEXT_MAJOR_VERSION_ARB, (sdpyOpenGLContextVersion>>8),
+							GLX_CONTEXT_MINOR_VERSION_ARB, (sdpyOpenGLContextVersion&0xff),
+							/*GLX_CONTEXT_PROFILE_MASK_ARB*/0x9126, (sdpyOpenGLContextCompatible ? /*GLX_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB*/0x02 : /*GLX_CONTEXT_CORE_PROFILE_BIT_ARB*/ 0x01),
+							// for modern context, set "forward compatibility" flag too
+							(sdpyOpenGLContextCompatible ? None : /*GLX_CONTEXT_FLAGS_ARB*/ 0x2094), /*GLX_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB*/ 0x02,
+							0/*None*/,
+						];
+						glc = glXCreateContextAttribsARB(display, fbconf, null, 1/*True*/, contextAttribs.ptr);
+						//{ import core.stdc.stdio; printf("using modern ogl v%d.%d\n", contextAttribs[1], contextAttribs[3]); }
+					} else {
+						// fallback to old GLX call
+					useglxlegacycontext:
+						glc = glXCreateContext(display, vi, null, /*GL_TRUE*/1);
+					}
+					// sync to ensure any errors generated are processed
+					XSync(display, 0/*False*/);
+					{ import core.stdc.stdio; printf("ogl is here\n"); }
 					if(glc is null)
 						throw new Exception("glc");
 				}
@@ -4405,6 +4714,20 @@ version(X11) {
 				XSetForeground(display, gc, WhitePixel(display, screen));
 				XFillRectangle(display, cast(Drawable) buffer, gc, 0, 0, width, height);
 				XSetForeground(display, gc, BlackPixel(display, screen));
+			}
+
+			// input context
+			//TODO: create this only for top-level windows, and reuse that?
+			if (XDisplayConnection.xim !is null) {
+				xic = XCreateIC(XDisplayConnection.xim,
+						/*XNInputStyle*/"inputStyle".ptr, XIMPreeditNothing|XIMStatusNothing,
+						/*XNClientWindow*/"clientWindow".ptr, window,
+						/*XNFocusWindow*/"focusWindow".ptr, window,
+						null);
+				if (xic is null) {
+					import core.stdc.stdio : stderr, fprintf;
+					fprintf(stderr, "XCreateIC failed for window %u\n", cast(uint)window);
+				}
 			}
 
 			setTitle(title);
@@ -4537,13 +4860,16 @@ version(X11) {
 				hints.sizeof / 4);
 		}
 
+		/*k8: unused
 		void createOpenGlContext() {
 
 		}
+		*/
 
 		void closeWindow() {
 			if(buffer)
 				XFreePixmap(display, buffer);
+			if (blankCurPtr) XFreeCursor(display, blankCurPtr);
 			XDestroyWindow(display, window);
 			XFlush(display);
 		}
@@ -4609,6 +4935,7 @@ version(X11) {
 				{
 					// adding Xlib file
 					ep.epoll_event ev = void;
+					{ import core.stdc.string : memset; memset(&ev, 0, ev.sizeof); } // this makes valgrind happy
 					ev.events = ep.EPOLLIN;
 					ev.data.fd = display.fd;
 					//import std.conv;
@@ -4632,6 +4959,7 @@ version(X11) {
 						throw new Exception("couldn't make pulse timer");
 						
 					ep.epoll_event ev = void;
+					{ import core.stdc.string : memset; memset(&ev, 0, ev.sizeof); } // this makes valgrind happy
 					ev.events = ep.EPOLLIN;
 					ev.data.fd = pulseFd;
 					ep.epoll_ctl(epollFd, ep.EPOLL_CTL_ADD, pulseFd, &ev);
@@ -4646,6 +4974,7 @@ version(X11) {
 						throw new Exception("epoll wait failure");
 					}
 
+					//version(sdddd) { import std.stdio; writeln("nfds=", nfds, "; [0]=", events[0].data.fd); }
 					foreach(idx; 0 .. nfds) {
 						if(done) break;
 						auto fd = events[idx].data.fd;
@@ -4653,18 +4982,27 @@ version(X11) {
 						auto flags = events[idx].events;
 						if(flags & ep.EPOLLIN) {
 							if(fd == display.fd) {
+								version(sdddd) { import std.stdio; writeln("X EVENT PENDING!"); }
+								this.mtLock();
+								scope(exit) this.mtUnlock();
 								while(!done && XPending(display))
 									done = doXNextEvent(this.display);
 							} else if(fd == pulseFd) {
 								long expirationCount;
 								// if we go over the count, I ignore it because i don't want the pulse to go off more often and eat tons of cpu time...
 
-								// read just to clear the buffer so poll doesn't trigger again
-								unix.read(pulseFd, &expirationCount, expirationCount.sizeof);
-
 								handlePulse();
+
+								// read just to clear the buffer so poll doesn't trigger again
+								// BTW I read AFTER the pulse because if the pulse handler takes
+								// a lot of time to execute, we don't want the app to get stuck
+								// in a loop of timer hits without a chance to do anything else
+								//
+								// IOW handlePulse happens at most once per pulse interval.
+								unix.read(pulseFd, &expirationCount, expirationCount.sizeof);
 							} else {
 								// some other timer
+								version(sdddd) { import std.stdio; writeln("unknown fd: ", fd); }
 
 								if(Timer* t = fd in Timer.mapping)
 									(*t).trigger();
@@ -4698,6 +5036,8 @@ version(X11) {
 					while(!done &&
 						(pulseTimeout == 0 || (XPending(display) > 0)))
 					{
+						this.mtLock();
+						scope(exit) this.mtUnlock();
 						done = doXNextEvent(this.display);
 					}
 					if(!done && !closed && pulseTimeout !=0) {
@@ -4720,12 +5060,27 @@ version(X11) {
 		bool done;
 		XEvent e;
 		XNextEvent(display, &e);
+		version(sdddd) { import std.stdio, std.conv : to; writeln("event for: ", e.xany.window, "; type is ", to!string(cast(EventType)e.type)); }
+    // filter out compose events
+    if (XFilterEvent(&e, None)) {
+      //{ import core.stdc.stdio : printf; printf("XFilterEvent filtered!\n"); }
+      //NOTE: we should ungrab keyboard here, but simpledisplay doesn't use keyboard grabbing (yet)
+      return false;
+    }
+    // process keyboard mapping changes
+    if (e.type == EventType.KeymapNotify) {
+      //{ import core.stdc.stdio : printf; printf("KeymapNotify processed!\n"); }
+      XRefreshKeyboardMapping(&e.xmapping);
+      return false;
+    }
 
 		version(with_eventloop)
 			import arsd.eventloop;
 
 		if(SimpleWindow.handleNativeGlobalEvent !is null) {
 			// see windows impl's comments
+			XUnlockDisplay(display);
+			scope(exit) XLockDisplay(display);
 			auto ret = SimpleWindow.handleNativeGlobalEvent(e);
 			if(ret == 0)
 				return done;
@@ -4734,6 +5089,8 @@ version(X11) {
 
 		if(auto win = e.xany.window in CapableOfHandlingNativeEvent.nativeHandleMapping) {
 			if(win.getNativeEventHandler !is null) {
+				XUnlockDisplay(display);
+				scope(exit) XLockDisplay(display);
 				auto ret = win.getNativeEventHandler()(e);
 				if(ret == 0)
 					return done;
@@ -4748,6 +5105,8 @@ version(X11) {
 		  case EventType.SelectionRequest:
 		  	if(auto win = e.xselectionrequest.owner in SimpleWindow.nativeMapping)
 			if(win.setSelectionHandler !is null) {
+				XUnlockDisplay(display);
+				scope(exit) XLockDisplay(display);
 				win.setSelectionHandler(e);
 			}
 		  break;
@@ -4756,6 +5115,8 @@ version(X11) {
 		  	if(win.getSelectionHandler !is null) {
 				// FIXME: maybe we should call a different handler for PRIMARY vs CLIPBOARD
 				if(e.xselection.property == None) { // || e.xselection.property == GetAtom!("NULL", true)(e.xselection.display)) {
+					XUnlockDisplay(display);
+					scope(exit) XLockDisplay(display);
 					win.getSelectionHandler(null);
 				} else {
 					Atom target;
@@ -4776,7 +5137,11 @@ version(X11) {
 					// FIXME: or be other formats...
 					// FIXME: I don't have to copy it now since it is in char[] instead of string
 
-					win.getSelectionHandler((cast(char[]) value[0 .. length]).idup);
+					{
+						XUnlockDisplay(display);
+						scope(exit) XLockDisplay(display);
+						win.getSelectionHandler((cast(char[]) value[0 .. length]).idup);
+					}
 					XFree(value);
 					XDeleteProperty(
 						e.xselection.display,
@@ -4788,6 +5153,7 @@ version(X11) {
 		  case EventType.ConfigureNotify:
 			auto event = e.xconfigure;
 		  	if(auto win = event.window in SimpleWindow.nativeMapping) {
+					//version(sdddd) { import std.stdio; writeln(" w=", event.width, "; h=", event.height); }
 				if(event.width != win.width || event.height != win.height) {
 					auto oldWidth = win.width;
 					auto oldHeight = win.height;
@@ -4820,6 +5186,8 @@ version(X11) {
 					}
 
 					if(win.windowResized !is null)
+						XUnlockDisplay(display);
+						scope(exit) XLockDisplay(display);
 						win.windowResized(event.width, event.height);
 				}
 			}
@@ -4829,7 +5197,9 @@ version(X11) {
 				if((*win).openglMode == OpenGlOptions.no)
 					XCopyArea(display, cast(Drawable) (*win).buffer, cast(Drawable) (*win).window, (*win).gc, e.xexpose.x, e.xexpose.y, e.xexpose.width, e.xexpose.height, e.xexpose.x, e.xexpose.y);
 				else {
-					// need to redraw the scene somehow.
+					// need to redraw the scene somehow
+					XUnlockDisplay(display);
+					scope(exit) XLockDisplay(display);
 					win.redrawOpenGlSceneNow();
 				}
 			}
@@ -4837,20 +5207,64 @@ version(X11) {
 		  case EventType.FocusIn:
 		  case EventType.FocusOut:
 		  	if(auto win = e.xfocus.window in SimpleWindow.nativeMapping) {
-				if(win.onFocusChange)
+        if (win.xic !is null) {
+          //{ import core.stdc.stdio : printf; printf("XIC focus change!\n"); }
+          if (e.type == EventType.FocusIn) XSetICFocus(win.xic); else XUnsetICFocus(win.xic);
+        }
+				if(win.onFocusChange) {
+					XUnlockDisplay(display);
+					scope(exit) XLockDisplay(display);
 					win.onFocusChange(e.type == EventType.FocusIn);
+				}
 			}
 		  break;
 		  case EventType.ClientMessage:
 		  	if(e.xclient.data.l[0] == GetAtom!"WM_DELETE_WINDOW"(e.xany.display)) {
 				// user clicked the close button on the window manager
-				if(auto win = e.xclient.window in SimpleWindow.nativeMapping)
-					(*win).close();
+				// FIXME: not implemented on Windows
+				if(auto win = e.xclient.window in SimpleWindow.nativeMapping) {
+					XUnlockDisplay(display);
+					scope(exit) XLockDisplay(display);
+					if ((*win).closeQuery !is null) (*win).closeQuery(); else (*win).close();
+				}
+			}
+		  break;
+		  case EventType.MapNotify:
+				if(auto win = e.xmap.window in SimpleWindow.nativeMapping) {
+					(*win)._visible = true;
+					if (!(*win)._visibleForTheFirstTimeCalled) {
+						(*win)._visibleForTheFirstTimeCalled = true;
+						if ((*win).visibleForTheFirstTime !is null) {
+							XUnlockDisplay(display);
+							scope(exit) XLockDisplay(display);
+							(*win).visibleForTheFirstTime();
+						}
+					}
+					if ((*win).visibilityChanged !is null) {
+						XUnlockDisplay(display);
+						scope(exit) XLockDisplay(display);
+						(*win).visibilityChanged(true);
+					}
+				}
+		  break;
+		  case EventType.UnmapNotify:
+				if(auto win = e.xunmap.window in SimpleWindow.nativeMapping) {
+					win._visible = false;
+					if (win.visibilityChanged !is null) {
+						XUnlockDisplay(display);
+						scope(exit) XLockDisplay(display);
+						win.visibilityChanged(false);
+					}
 			}
 		  break;
 		  case EventType.DestroyNotify:
 			if(auto win = e.xdestroywindow.window in SimpleWindow.nativeMapping) {
-				(*win).destroyed = true;
+				win._closed = true; // just in case
+				win.destroyed = true;
+				if (win.xic !is null) {
+					XDestroyIC(win.xic);
+					win.xic = null; // just in calse
+				}
 				SimpleWindow.nativeMapping.remove(e.xdestroywindow.window);
 				if(SimpleWindow.nativeMapping.keys.length == 0)
 					done = true;
@@ -4875,8 +5289,11 @@ version(X11) {
 
 			if(auto win = e.xmotion.window in SimpleWindow.nativeMapping) {
 				(*win).mdx(mouse);
-				if((*win).handleMouseEvent)
+				if((*win).handleMouseEvent) {
+					XUnlockDisplay(display);
+					scope(exit) XLockDisplay(display);
 					(*win).handleMouseEvent(mouse);
+				}
 				mouse.window = *win;
 			}
 
@@ -4908,8 +5325,11 @@ version(X11) {
 
 			if(auto win = e.xbutton.window in SimpleWindow.nativeMapping) {
 				(*win).mdx(mouse);
-				if((*win).handleMouseEvent)
+				if((*win).handleMouseEvent) {
+					XUnlockDisplay(display);
+					scope(exit) XLockDisplay(display);
 					(*win).handleMouseEvent(mouse);
+				}
 				mouse.window = *win;
 			}
 			version(with_eventloop)
@@ -4918,6 +5338,7 @@ version(X11) {
 
 		  case EventType.KeyPress:
 		  case EventType.KeyRelease:
+			//if (e.type == EventType.KeyPress) { import core.stdc.stdio : stderr, fprintf; fprintf(stderr, "X11 keyboard event!\n"); }
 			KeyEvent ke;
 			ke.pressed = e.type == EventType.KeyPress;
 			ke.hardwareCode = e.xkey.keycode;
@@ -4931,35 +5352,53 @@ version(X11) {
 
 			ke.modifierState = e.xkey.state;
 
-			// Xutf8LookupString
-
 			// import std.stdio; writefln("%x", sym);
-			if(sym != 0 && ke.pressed) {
-				char[16] buffer;
-				auto res = XLookupString(&e.xkey, buffer.ptr, buffer.length, null, null);
-				if(res && buffer[0] < 128)
-					ke.character = cast(dchar) buffer[0];
+			wchar_t[128] charbuf = void; // buffer for XwcLookupString; composed value can consist of many chars!
+			int charbuflen = 0; // return value of XwcLookupString
+			if (ke.pressed) {
+				auto win = e.xkey.window in SimpleWindow.nativeMapping;
+				if (win !is null && win.xic !is null) {
+					//{ import core.stdc.stdio : printf; printf("using xic!\n"); }
+					Status status;
+					charbuflen = XwcLookupString(win.xic, &e.xkey, charbuf.ptr, cast(int)charbuf.length, &sym, &status);
+					//{ import core.stdc.stdio : printf; printf("charbuflen=%d\n", charbuflen); }
+				} else {
+					//{ import core.stdc.stdio : printf; printf("NOT using xic!\n"); }
+					// If XIM initialization failed, don't process intl chars. Sorry, boys and girls.
+					char[16] buffer;
+					auto res = XLookupString(&e.xkey, buffer.ptr, buffer.length, null, null);
+					if (res && buffer[0] < 128) charbuf[charbuflen++] = cast(wchar_t)buffer[0];
+				}
 			}
 
-			switch(sym) {
-				case 0xff09: ke.character = '\t'; break;
-				case 0xff8d: // keypad enter
-				case 0xff0d: ke.character = '\n'; break;
-				default : // ignore
+			// if there's no char, subst one
+			if (charbuflen == 0) {
+				switch (sym) {
+					case 0xff09: charbuf[charbuflen++] = '\t'; break;
+					case 0xff8d: // keypad enter
+					case 0xff0d: charbuf[charbuflen++] = '\n'; break;
+					default : // ignore
+				}
 			}
 
-			if(auto win = e.xkey.window in SimpleWindow.nativeMapping) {
-
+			if (auto win = e.xkey.window in SimpleWindow.nativeMapping) {
 				ke.window = *win;
-
-				if((*win).handleKeyEvent)
-					(*win).handleKeyEvent(ke);
+				if (win.handleKeyEvent) {
+					XUnlockDisplay(display);
+					scope(exit) XLockDisplay(display);
+					win.handleKeyEvent(ke);
+				}
 
 				// char events are separate since they are on Windows too
-				if(ke.pressed && ke.character != dchar.init) {
+				// also, xcompose can generate long char sequences
+				if (ke.pressed && charbuflen > 0) {
 					// FIXME: I think Windows sends these on releases... we should try to match that, but idk about repeats.
-					if((*win).handleCharEvent) {
-						(*win).handleCharEvent(ke.character);
+					foreach (immutable dchar ch; charbuf[0..charbuflen]) {
+						if (win.handleCharEvent) {
+							XUnlockDisplay(display);
+							scope(exit) XLockDisplay(display);
+							win.handleCharEvent(ch);
+						}
 					}
 				}
 			}
@@ -5001,7 +5440,7 @@ version(Windows) {
 	}
 
 	version(without_opengl){} else {
-		extern(Windows) {
+		extern(Windows) nothrow @nogc {
 			alias HANDLE HGLRC;
 			BOOL wglMakeCurrent(HDC, HGLRC);
 			HGLRC wglCreateContext(HDC);
@@ -5009,6 +5448,13 @@ version(Windows) {
 			BOOL wglDeleteContext(HGLRC);
 			int ChoosePixelFormat(HDC, in PIXELFORMATDESCRIPTOR*);
 			BOOL SetPixelFormat(HDC hdc, int iPixelFormat, const PIXELFORMATDESCRIPTOR *ppfd);
+			void* wglGetProcAddress (const(char)*);
+			void* glGetProcAddress (const(char)* name) {
+				// see https://www.opengl.org/wiki/Load_OpenGL_Functions for rationale
+				auto res = wglGetProcAddress(name);
+				if (res is null || res is cast(void*)(0x01) || res is cast(void*)(0x02) || res is cast(void*)(0x03) || res is cast(void*)(-1)) return null;
+				return res;
+			}
 
 			struct PIXELFORMATDESCRIPTOR {
 			  WORD  nSize;
@@ -5304,14 +5750,21 @@ else version(X11) {
 
 pragma(lib, "X11");
 pragma(lib, "Xext");
+import core.stdc.stddef : wchar_t;
 
-extern(C):
+extern(C) nothrow @nogc {
 
 Cursor XCreateFontCursor(Display*, uint shape);
 int XDefineCursor(Display* display, Window w, Cursor cursor);
 int XUndefineCursor(Display* display, Window w);
 
+Pixmap XCreateBitmapFromData(Display* display, Drawable d, const(char)* data, uint width, uint height);
+Cursor XCreatePixmapCursor(Display* display, Pixmap source, Pixmap mask, XColor* foreground_color, XColor* background_color, uint x, uint y);
+int XFreeCursor(Display* display, Cursor cursor);
+
 int XLookupString(XKeyEvent *event_struct, char *buffer_return, int bytes_buffer, KeySym *keysym_return, void *status_in_out);
+
+int XwcLookupString(XIC ic, XKeyPressedEvent* event, wchar_t* buffer_return, int wchars_buffer, KeySym* keysym_return, Status* status_return);
 
 char *XKeysymToString(KeySym keysym);
 KeySym XKeycodeToKeysym(
@@ -5350,6 +5803,50 @@ Display* XOpenDisplay(const char*);
 int XCloseDisplay(Display*);
 
 Bool XQueryExtension(Display*, const char*, int*, int*, int*);
+
+// XIM and other crap
+struct _XOM {}
+struct _XIM {}
+struct _XIC {}
+alias XOM = _XOM*;
+alias XIM = _XIM*;
+alias XIC = _XIC*;
+Bool XSupportsLocale();
+char* XSetLocaleModifiers(const(char)* modifier_list);
+XOM XOpenOM(Display* display, _XrmHashBucketRec* rdb, const(char)* res_name, const(char)* res_class);
+Status XCloseOM(XOM om);
+
+XIM XOpenIM(Display* dpy, _XrmHashBucketRec* rdb, const(char)* res_name, const(char)* res_class);
+Status XCloseIM(XIM im);
+
+char* XGetIMValues(XIM im, ...) /*_X_SENTINEL(0)*/;
+char* XSetIMValues(XIM im, ...) /*_X_SENTINEL(0)*/;
+Display* XDisplayOfIM(XIM im);
+char* XLocaleOfIM(XIM im);
+XIC XCreateIC(XIM im, ...) /*_X_SENTINEL(0)*/;
+void XDestroyIC(XIC ic);
+void XSetICFocus(XIC ic);
+void XUnsetICFocus(XIC ic);
+//wchar_t* XwcResetIC(XIC ic);
+char* XmbResetIC(XIC ic);
+char* Xutf8ResetIC(XIC ic);
+char* XSetICValues(XIC ic, ...) /*_X_SENTINEL(0)*/;
+char* XGetICValues(XIC ic, ...) /*_X_SENTINEL(0)*/;
+XIM XIMOfIC(XIC ic);
+
+alias XIMStyle = arch_ulong;
+enum : arch_ulong {
+  XIMPreeditArea      = 0x0001,
+  XIMPreeditCallbacks = 0x0002,
+  XIMPreeditPosition  = 0x0004,
+  XIMPreeditNothing   = 0x0008,
+  XIMPreeditNone      = 0x0010,
+  XIMStatusArea       = 0x0100,
+  XIMStatusCallbacks  = 0x0200,
+  XIMStatusNothing    = 0x0400,
+  XIMStatusNone       = 0x0800,
+}
+
 
 /* X Shared Memory Extension functions */
 	//pragma(lib, "Xshm");
@@ -5551,7 +6048,7 @@ enum ColorMapNotification:int
 	alias XID Pixmap;
 
 	alias arch_ulong Atom;
-	alias bool Bool;
+	alias int Bool;
 	alias Display XDisplay;
 
 	alias int ByteOrder;
@@ -5949,6 +6446,9 @@ int XNextEvent(
     Display*	/* display */,
     XEvent*		/* event_return */
 );
+
+Bool XFilterEvent(XEvent *event, Window window);
+int XRefreshKeyboardMapping(XMappingEvent *event_map);
 
 Status XSetWMProtocols(
     Display*	/* display */,
@@ -6462,10 +6962,11 @@ alias XID Cursor;
 alias XID KeySym;
 alias uint KeyCode;
 enum None = 0;
+}
 
 version(without_opengl) {}
 else {
-
+extern(C) nothrow @nogc {
 
 enum GLX_USE_GL=            1;       /* support GLX rendering */
 enum GLX_BUFFER_SIZE=       2;       /* depth of the color buffer */
@@ -6558,7 +7059,9 @@ alias void* GLXContext;
 		int bits_per_rgb;
 	}
 }
+}
 
+extern(C) nothrow @nogc {
 struct Screen{
 	XExtData *ext_data;		/* hook for extension to hang data */
 	Display *display;		/* back pointer to display structure */
@@ -6615,6 +7118,10 @@ struct Visual
 		char* res_name;
 		char* res_class;
 	}
+
+	Status XInitThreads();
+	void XLockDisplay (Display* display);
+	void XUnlockDisplay (Display* display);
 
 	void XSetWMProperties(Display*, Window, XTextProperty*, XTextProperty*, char**, int, XSizeHints*, XWMHints*, XClassHint*);
 
@@ -6767,6 +7274,12 @@ struct Visual
 	alias XErrorHandler = int function(Display*, XErrorEvent*);
 	XErrorHandler XSetErrorHandler(XErrorHandler);
 
+  /* WARNING, this type not in Xlib spec */
+  extern(C) alias XIOErrorHandler = int function (Display* display);
+  XIOErrorHandler XSetIOErrorHandler (XIOErrorHandler handler);
+
+  Bool XkbSetDetectableAutoRepeat(Display* dpy, Bool detectable, Bool* supported);
+
 	int XCopyPlane(Display*, Drawable, Drawable, GC, int, int, uint, uint, int, int, arch_ulong);
 
 	Status XGetGeometry(Display*, Drawable, Window*, int*, int*, uint*, uint*, uint*, uint*);
@@ -6842,7 +7355,8 @@ struct Visual
 	enum int NormalState = 1;
 	enum int IconicState = 3;
 
- } else version (OSXCocoa) {
+}
+} else version (OSXCocoa) {
 private:
     alias void* id;
     alias void* Class;
@@ -6934,7 +7448,7 @@ private:
         OBJC_ASSOCIATION_COPY_NONATOMIC = 3,
         OBJC_ASSOCIATION_RETAIN = 0x301, //01401,
         OBJC_ASSOCIATION_COPY = 0x303 //01403
-    };
+    }
 
     extern(C) {
         id objc_msgSend(id receiver, SEL selector, ...);
@@ -7630,7 +8144,60 @@ version(html5) {
 
 
 version(without_opengl) {} else
-extern(System){
+extern(System) nothrow @nogc {
+  version(X11) {
+		struct __GLXFBConfigRec {}
+		alias GLXFBConfig = __GLXFBConfigRec*;
+
+		enum GLX_X_RENDERABLE = 0x8012;
+		enum GLX_DRAWABLE_TYPE = 0x8010;
+		enum GLX_RENDER_TYPE = 0x8011;
+		enum GLX_X_VISUAL_TYPE = 0x22;
+		enum GLX_TRUE_COLOR = 0x8002;
+		enum GLX_WINDOW_BIT = 0x00000001;
+		enum GLX_RGBA_BIT = 0x00000001;
+		enum GLX_COLOR_INDEX_BIT = 0x00000002;
+		enum GLX_SAMPLE_BUFFERS = 0x186a0;
+		enum GLX_SAMPLES = 0x186a1;
+		enum GLX_CONTEXT_MAJOR_VERSION_ARB = 0x2091;
+		enum GLX_CONTEXT_MINOR_VERSION_ARB = 0x2092;
+
+		GLXFBConfig* glXChooseFBConfig (Display*, int, int*, int*);
+		int glXGetFBConfigAttrib (Display*, GLXFBConfig, int, int*);
+		XVisualInfo* glXGetVisualFromFBConfig (Display*, GLXFBConfig);
+
+		char* glXQueryExtensionsString (Display*, int);
+		void* glXGetProcAddress (const(char)*);
+
+		alias glGetProcAddress = glXGetProcAddress;
+
+		// GLX_EXT_swap_control
+		alias glXSwapIntervalEXT = void function (Display* dpy, /*GLXDrawable*/Drawable drawable, int interval);
+		private __gshared glXSwapIntervalEXT _glx_swapInterval_fn = null;
+
+		alias glXCreateContextAttribsARB_fna = GLXContext function (Display *dpy, GLXFBConfig config, GLXContext share_context, /*Bool*/int direct, const(int)* attrib_list);
+		__gshared glXCreateContextAttribsARB_fna glXCreateContextAttribsARB = null; // this made public so we don't have to get it again and again; it will become valid after window creation
+		
+		void glxInitOtherFunctions () {
+			if (glXCreateContextAttribsARB is null) {
+				glXCreateContextAttribsARB = cast(glXCreateContextAttribsARB_fna)glGetProcAddress("glXCreateContextAttribsARB");
+			}
+		}
+
+		void glxSetVSync (Display* dpy, /*GLXDrawable*/Drawable drawable, bool wait) {
+		  if (cast(void*)_glx_swapInterval_fn is cast(void*)1) return;
+		  if (_glx_swapInterval_fn is null) {
+		    _glx_swapInterval_fn = cast(glXSwapIntervalEXT)glXGetProcAddress("glXSwapIntervalEXT");
+		    if (_glx_swapInterval_fn is null) {
+		      _glx_swapInterval_fn = cast(glXSwapIntervalEXT)1;
+		      return;
+		    }
+		    version(sdddd) { import std.stdio; writeln("glXSwapIntervalEXT found!"); }
+		  }
+		  _glx_swapInterval_fn(dpy, drawable, (wait ? 1 : 0));
+		}
+	}
+
 	void glGetIntegerv(int, void*);
 	void glMatrixMode(int);
 	void glPushMatrix();
@@ -7649,8 +8216,14 @@ extern(System){
 	void glVertex2f(float, float);
 	void glVertex3f(float, float, float);
 	void glEnd();
-	void glColor3b(ubyte, ubyte, ubyte);
+	void glColor3b(byte, byte, byte);
+	void glColor3ub(ubyte, ubyte, ubyte);
+	void glColor4b(byte, byte, byte, byte);
+	void glColor4ub(ubyte, ubyte, ubyte, ubyte);
 	void glColor3i(int, int, int);
+	void glColor3ui(uint, uint, uint);
+	void glColor4i(int, int, int, int);
+	void glColor4ui(uint, uint, uint, uint);
 	void glColor3f(float, float, float);
 	void glColor4f(float, float, float, float);
 	void glTranslatef(float, float, float);
@@ -7675,7 +8248,15 @@ extern(System){
 	void glGenTextures(uint, uint*);
 	void glBindTexture(int, int);
 	void glTexParameteri(uint, uint, int);
+	void glTexParameterf(uint/*GLenum*/ target, uint/*GLenum*/ pname, float param);
 	void glTexImage2D(int, int, int, int, int, int, int, int, in void*);
+	void glTexSubImage2D(uint/*GLenum*/ target, int level, int xoffset, int yoffset,
+                       /*GLsizei*/int width, /*GLsizei*/int height,
+                       uint/*GLenum*/ format, uint/*GLenum*/ type, in void* pixels);
+	void glTextureSubImage2D(uint texture, int level, int xoffset, int yoffset,
+                           /*GLsizei*/int width, /*GLsizei*/int height,
+                           uint/*GLenum*/ format, uint/*GLenum*/ type, in void* pixels);
+	void glTexEnvf(uint/*GLenum*/ target, uint/*GLenum*/ pname, float param);
 
 
 	void glTexCoord2f(float, float);
@@ -7689,6 +8270,8 @@ extern(System){
 	void glReadBuffer(uint);
 	void glReadPixels(int, int, int, int, int, int, void*);
 
+	void glFlush();
+	void glFinish();
 
 	enum uint GL_FRONT = 0x0404;
 
@@ -7707,6 +8290,18 @@ extern(System){
 	enum uint GL_NEAREST = 0x2600;
 	enum uint GL_LINEAR = 0x2601;
 	enum uint GL_TEXTURE_MAG_FILTER = 0x2800;
+	enum uint GL_TEXTURE_WRAP_S = 0x2802;
+	enum uint GL_TEXTURE_WRAP_T = 0x2803;
+	enum uint GL_REPEAT = 0x2901;
+	enum uint GL_CLAMP = 0x2900;
+	enum uint GL_CLAMP_TO_EDGE = 0x812F;
+	enum uint GL_DECAL = 0x2101;
+	enum uint GL_MODULATE = 0x2100;
+	enum uint GL_TEXTURE_ENV = 0x2300;
+	enum uint GL_TEXTURE_ENV_MODE = 0x2200;
+	enum uint GL_REPLACE = 0x1E01;
+	enum uint GL_LIGHTING = 0x0B50;
+	enum uint GL_DITHER = 0x0BD0;
 
 	enum uint GL_NO_ERROR = 0;
 
@@ -7732,7 +8327,6 @@ extern(System){
 	enum int GL_QUADS = 7;
 	enum int GL_QUAD_STRIP = 8;
 	enum int GL_POLYGON = 9;
-
 }
 
 version(linux) {
@@ -7743,10 +8337,376 @@ version(linux) {
 				return; // already initialized, no need to do it again
 			import ep = core.sys.linux.epoll;
 
-			epollFd = ep.epoll_create1(0);
+			epollFd = ep.epoll_create1(ep.EPOLL_CLOEXEC);
 			if(epollFd == -1)
 				throw new Exception("epoll create failure");
 		}
+	}
+
+}
+
+version(X11) {
+	__gshared bool sdx_isUTF8Locale;
+
+	// This whole crap is used to initialize X11 locale, so that you can use XIM methods later.
+	// Yes, there are people with non-utf locale (it's me, Ketmar!), but XIM (composing) will
+	// not work right if app/X11 locale is not utf. This sux. That's why all that "utf detection"
+	// anal magic is here. I (Ketmar) hope you like it.
+	// We will use `sdx_isUTF8Locale` on XIM creation to enforce UTF-8 locale, so XCompose will
+	// always return correct unicode symbols. The detection is here 'cause user can change locale
+	// later.
+	shared static this () {
+		import core.stdc.locale : setlocale, LC_ALL, LC_CTYPE;
+
+		// this doesn't hurt; it may add some locking, but the speed is still
+		// allows doing 60 FPS videogames; also, ignore the result, as most
+		// users will probably won't do mulththreaded X11 anyway (and I (ketmar)
+		// never seen this failing).
+		if (XInitThreads() == 0) { import core.stdc.stdio; fprintf(stderr, "XInitThreads() failed!\n"); }
+
+		setlocale(LC_ALL, "");
+		// check if out locale is UTF-8
+		auto lct = setlocale(LC_CTYPE, null);
+		if (lct is null) {
+			sdx_isUTF8Locale = false;
+		} else {
+			for (size_t idx = 0; lct[idx] && lct[idx+1] && lct[idx+2]; ++idx) {
+				if ((lct[idx+0] == 'u' || lct[idx+0] == 'U') &&
+						(lct[idx+1] == 't' || lct[idx+1] == 'T') &&
+						(lct[idx+2] == 'f' || lct[idx+2] == 'F'))
+				{
+					sdx_isUTF8Locale = true;
+					break;
+				}
+			}
+		}
+		//{ import core.stdc.stdio : stderr, fprintf; fprintf(stderr, "UTF8: %s\n", sdx_isUTF8Locale ? "tan".ptr : "ona".ptr); }
+	}
+}
+
+
+// Don't use this yet. When I'm happy with it, I will move it to the
+// regular module namespace.
+mixin template ExperimentalTextComponent() {
+
+	alias Rectangle = arsd.color.Rectangle;
+
+	// FIXME remove this
+	import std.string : split;
+
+	struct ForegroundColor {
+		Color color;
+		alias color this;
+
+		this(Color c) {
+			color = c;
+		}
+
+		this(int r, int g, int b, int a = 255) {
+			color = Color(r, g, b, a);
+		}
+
+		static ForegroundColor opDispatch(string s)() if(__traits(compiles, ForegroundColor(mixin("Color." ~ s)))) {
+			return ForegroundColor(mixin("Color." ~ s));
+		}
+	}
+
+	struct BackgroundColor {
+		Color color;
+		alias color this;
+
+		this(Color c) {
+			color = c;
+		}
+
+		this(int r, int g, int b, int a = 255) {
+			color = Color(r, g, b, a);
+		}
+
+		static BackgroundColor opDispatch(string s)() if(__traits(compiles, BackgroundColor(mixin("Color." ~ s)))) {
+			return BackgroundColor(mixin("Color." ~ s));
+		}
+	}
+
+	struct InlineElement {
+		string text;
+
+		Color color = Color.black;
+		Color backgroundColor = Color.transparent;
+		ushort styles;
+
+		string font;
+		int fontSize;
+
+		int lineHeight;
+
+		void* identifier;
+
+		Rectangle boundingBox;
+		int[] letterXs; // FIXME: maybe i should do bounding boxes for every character
+
+		int xOfIndex(size_t index) {
+			if(index < letterXs.length)
+				return letterXs[index];
+			else
+				return boundingBox.right;
+		}
+	}
+
+	// Block elements are used entirely for positioning inline elements,
+	// which are the things that are actually drawn.
+	class BlockElement {
+		InlineElement[] parts;
+		uint alignment;
+
+		int whiteSpace; // pre, pre-wrap, wrap
+
+		// inputs
+		Point where;
+		Size minimumSize;
+		Size maximumSize;
+		Rectangle[] excludedBoxes; // like if you want it to write around a floated image or something. Coordinates are relative to the bounding box.
+		void* identifier;
+
+		Rectangle margin;
+		Rectangle padding;
+
+		// outputs
+		Rectangle[] boundingBoxes;
+	}
+
+	struct TextIdentifyResult {
+		InlineElement* element;
+		size_t offset;
+	}
+
+	class TextLayout {
+		BlockElement[] blocks;
+		Rectangle boundingBox;
+
+		BlockElement[] getBlocks() {
+			return blocks;
+		}
+
+		InlineElement[] getTexts() {
+			InlineElement[] elements;
+			foreach(block; blocks)
+				elements ~= block.parts;
+			return elements;
+		}
+
+		string getPlainText() {
+			string text;
+			foreach(block; blocks)
+				foreach(part; block.parts)
+					text ~= part.text;
+			return text;
+		}
+
+		string getHtml() {
+			return null; // FIXME
+		}
+
+		this(Rectangle boundingBox) {
+			this.boundingBox = boundingBox;
+		}
+
+		BlockElement addBlock(Rectangle margin = Rectangle(0, 0, 0, 0), Rectangle padding = Rectangle(0, 0, 0, 0)) {
+			auto be = new BlockElement();
+			blocks ~= be;
+			return be;
+		}
+
+		void clear() {
+			blocks = null;
+		}
+
+		void addText(Args...)(Args args) {
+			if(blocks.length == 0)
+				addBlock();
+
+			InlineElement ie;
+			foreach(idx, arg; args) {
+				static if(is(typeof(arg) == ForegroundColor))
+					ie.color = arg;
+				else static if(is(typeof(arg) == TextFormat)) {
+					if(arg & 0x8000) // ~TextFormat.something turns it off
+						ie.styles &= arg;
+					else
+						ie.styles |= arg;
+				} else static if(is(typeof(arg) == string)) {
+					static if(idx == 0 && args.length > 1)
+						static assert(0, "Put styles before the string.");
+					size_t lastLineIndex;
+					foreach(cidx, char a; arg) {
+						if(a == '\n') {
+							ie.text = arg[lastLineIndex .. cidx];
+							lastLineIndex = cidx + 1;
+							blocks[$-1].parts ~= ie;
+							ie.text = "\n";
+							blocks[$-1].parts ~= ie;
+							addBlock();
+						} else {
+
+						}
+					}
+
+					ie.text = arg[lastLineIndex .. $];
+					blocks[$-1].parts ~= ie;
+				}
+			}
+		}
+
+		/// Call this if the inputs change. It will reflow everything
+		void redoLayout() {
+
+		}
+
+		TextIdentifyResult identify(int x, int y) {
+			foreach(block; blocks) {
+				foreach(ref part; block.parts) {
+					if(x >= part.boundingBox.left && x < part.boundingBox.right && y >= part.boundingBox.top && y < part.boundingBox.bottom) {
+
+						// FIXME binary search
+						size_t tidx;
+						foreach_reverse(idx, lx; part.letterXs)
+							if(lx <= x) {
+								tidx = idx;
+								break;
+							}
+
+						return TextIdentifyResult(&part, tidx);
+					}
+				}
+			}
+
+			return TextIdentifyResult(null, 0);
+		}
+
+		void drawInto(ScreenPainter painter) {
+			auto pos = Point(boundingBox.left, boundingBox.top);
+
+			int lastHeight;
+			foreach(block; blocks) {
+				pos.x = boundingBox.left;
+				pos.y += lastHeight;
+				foreach(ref part; block.parts) {
+					painter.outlineColor = part.color;
+					painter.fillColor = part.backgroundColor;
+					if(part.text == "\n")
+						continue;
+					auto size = painter.textSize(part.text);
+
+					painter.drawText(pos, part.text);
+					if(part.styles & TextFormat.underline)
+						painter.drawLine(Point(pos.x, pos.y + size.height - 1), Point(pos.x + size.width, pos.y + size.height - 1));
+					if(part.styles & TextFormat.strikethrough)
+						painter.drawLine(Point(pos.x, pos.y + size.height/2), Point(pos.x + size.width, pos.y + size.height/2));
+
+					part.boundingBox = Rectangle(pos.x, pos.y, pos.x + size.width, pos.y + size.height);
+
+					part.letterXs = null;
+					foreach(idx, char c; part.text) {
+							// FIXME: unicode
+						part.letterXs ~= painter.textSize(part.text[0 .. idx]).width + pos.x;
+					}
+
+					pos.x += size.width;
+					if(pos.x >= boundingBox.right) {
+						pos.y += size.height;
+						pos.x = boundingBox.left;
+						lastHeight = 0;
+					} else {
+						lastHeight = size.height;
+					}
+				}
+			}
+
+		}
+
+		/// Carat movement api
+		/// These should give the user a logical result based on what they see on screen...
+		/// thus they locate predominately by *pixels* not char index. (These will generally coincide with monospace fonts tho!)
+		void moveUp(ref Carat carat) {}
+		void moveDown(ref Carat carat) {}
+		void moveLeft(ref Carat carat) {}
+		void moveRight(ref Carat carat) {}
+		void moveHome(ref Carat carat) {}
+		void moveEnd(ref Carat carat) {}
+		void movePageUp(ref Carat carat) {}
+		void movePageDown(ref Carat carat) {}
+
+		/// Plain text editing api. These work at the current carat inside the selected inline element.
+		void insertText(string text) {}
+		void backspace() {}
+		void delete_() {}
+		void overstrike() {}
+
+		/// Selection API. See also: carat movement.
+		void selectAll() {}
+		void selectNone() {}
+
+		/// Rich text editing api. These allow you to manipulate the meta data of the current element and add new elements.
+		/// They will modify the current selection if there is one and will splice one in if needed.
+		void changeAttributes() {}
+
+
+		/// Text search api. They manipulate the selection and/or carat.
+		void findText(string text) {}
+		void findIndex(size_t textIndex) {}
+
+		// sample event handlers
+
+		void handleEvent(KeyEvent event) {
+			//if(event.type == KeyEvent.Type.KeyPressed) {
+
+			//}
+		}
+
+		void handleEvent(dchar ch) {
+
+		}
+
+		void handleEvent(MouseEvent event) {
+
+		}
+
+		bool contentEditable; // can it be edited?
+		bool contentCaratable; // is there a carat/cursor that moves around in there?
+		bool contentSelectable; // selectable?
+
+		Carat carat;
+		Carat selectionStart;
+		Carat selectionEnd;
+
+		bool insertMode;
+	}
+
+	struct Carat {
+		TextLayout layout;
+		InlineElement* inlineElement;
+		int offset;
+	}
+
+	enum TextFormat : ushort {
+		// decorations
+		underline = 1,
+		strikethrough = 2,
+
+		// font selectors
+
+		bold = 0x4000 | 1, // weight 700
+		light = 0x4000 | 2, // weight 300
+		veryBoldOrLight = 0x4000 | 4, // weight 100 with light, weight 900 with bold
+		// bold | light is really invalid but should give weight 500
+		// veryBoldOrLight without one of the others should just give the default for the font; it should be ignored.
+
+		italic = 0x4000 | 8,
+		smallcaps = 0x4000 | 16,
+	}
+
+	void* findFont(string family, int weight, TextFormat formats) {
+		return null;
 	}
 
 }

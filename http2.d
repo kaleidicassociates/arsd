@@ -1,3 +1,4 @@
+/// HTTP client lib
 // Copyright 2013, Adam D. Ruppe.
 module arsd.http2;
 
@@ -665,7 +666,7 @@ class HttpRequest {
 						case 2: // reading data
 							auto can = a + bodyReadingState.contentLengthRemaining;
 							if(can > data.length)
-								can = data.length;
+								can = cast(int) data.length;
 
 							//if(bodyReadingState.isGzipped || bodyReadingState.isDeflated)
 							//	responseData.content ~= cast(ubyte[]) uncompress.uncompress(data[a .. can]);
@@ -686,11 +687,17 @@ class HttpRequest {
 							//goto done; // FIXME
 							state = State.complete;
 
-							auto n = uncompress.uncompress(responseData.content);
-							n ~= uncompress.flush();
-							responseData.content = cast(ubyte[]) n;
+							// skip the tailing chunk of headers
+							// FIXME
+							if(data.length == 5 && data == [48, 13, 10, 13, 10])
+								a = data.length;
 
-							//if(bodyReadingState.isGzipped || bodyReadingState.isDeflated)
+							if(bodyReadingState.isGzipped || bodyReadingState.isDeflated) {
+								auto n = uncompress.uncompress(responseData.content);
+								n ~= uncompress.flush();
+								responseData.content = cast(ubyte[]) n;
+							}
+
 							//	responseData.content ~= cast(ubyte[]) uncompress.flush();
 
 							responseData.contentText = cast(string) responseData.content;
@@ -736,7 +743,11 @@ class HttpRequest {
 		requestParameters.ssl = parts.scheme == "https";
 		if(parts.port == 0)
 			requestParameters.port = requestParameters.ssl ? 443 : 80;
-		requestParameters.uri = parts.path;
+		requestParameters.uri = parts.path.length ? parts.path : "/";
+		if(parts.query.length) {
+			requestParameters.uri ~= "?";
+			requestParameters.uri ~= parts.query;
+		}
 	}
 
 	~this() {
@@ -751,7 +762,12 @@ class HttpRequest {
 	size_t bodyBytesSent;
 	size_t bodyBytesReceived;
 
-	State state;
+	State state_;
+	State state() { return state_; }
+	State state(State s) {
+		assert(state_ != State.complete);
+		return state_ = s;
+	}
 	/// Called when data is received. Check the state to see what data is available.
 	void delegate(HttpRequest) onDataReceived;
 
@@ -1032,12 +1048,22 @@ version(use_openssl) {
 		int SSL_connect(SSL*);
 		int SSL_write(SSL*, const void*, int);
 		int SSL_read(SSL*, void*, int);
-		int SSL_pending(const SSL*);
 		void SSL_free(SSL*);
 		void SSL_CTX_free(SSL_CTX*);
 
+		int SSL_pending(const SSL*);
+
+		void SSL_set_verify(SSL*, int, void*);
+		enum SSL_VERIFY_NONE = 0;
+
 		SSL_METHOD* SSLv3_client_method();
+		SSL_METHOD* TLS_client_method();
+		SSL_METHOD* SSLv23_client_method();
+
+		void ERR_print_errors_fp(FILE*);
 	}
+
+	import core.stdc.stdio;
 
 	shared static this() {
 		SSL_library_init();
@@ -1052,11 +1078,13 @@ version(use_openssl) {
 	class OpenSslSocket : Socket {
 		private SSL* ssl;
 		private SSL_CTX* ctx;
-		private void initSsl() {
-			ctx = SSL_CTX_new(SSLv3_client_method());
+		private void initSsl(bool verifyPeer) {
+			ctx = SSL_CTX_new(SSLv23_client_method());
 			assert(ctx !is null);
 
 			ssl = SSL_new(ctx);
+			if(!verifyPeer)
+				SSL_set_verify(ssl, SSL_VERIFY_NONE, null);
 			SSL_set_fd(ssl, this.handle);
 		}
 
@@ -1067,33 +1095,55 @@ version(use_openssl) {
 		@trusted
 		override void connect(Address to) {
 			super.connect(to);
-			if(SSL_connect(ssl) == -1)
+			if(SSL_connect(ssl) == -1) {
+				ERR_print_errors_fp(stderr);
+				int i;
+				printf("wtf\n");
+				scanf("%d\n", i);
 				throw new Exception("ssl connect");
+			}
 		}
 		
 		@trusted
 		override ptrdiff_t send(const(void)[] buf, SocketFlags flags) {
-			return SSL_write(ssl, buf.ptr, cast(uint) buf.length);
+			auto retval = SSL_write(ssl, buf.ptr, cast(uint) buf.length);
+			if(retval == -1) {
+				ERR_print_errors_fp(stderr);
+				int i;
+				printf("wtf\n");
+				scanf("%d\n", i);
+				throw new Exception("ssl send");
+			}
+			return retval;
+
 		}
 		override ptrdiff_t send(const(void)[] buf) {
 			return send(buf, SocketFlags.NONE);
 		}
 		@trusted
 		override ptrdiff_t receive(void[] buf, SocketFlags flags) {
-			return SSL_read(ssl, buf.ptr, cast(int)buf.length);
+			auto retval = SSL_read(ssl, buf.ptr, cast(int)buf.length);
+			if(retval == -1) {
+				ERR_print_errors_fp(stderr);
+				int i;
+				printf("wtf\n");
+				scanf("%d\n", i);
+				throw new Exception("ssl send");
+			}
+			return retval;
 		}
 		override ptrdiff_t receive(void[] buf) {
 			return receive(buf, SocketFlags.NONE);
 		}
 
-		this(AddressFamily af, SocketType type = SocketType.STREAM) {
+		this(AddressFamily af, SocketType type = SocketType.STREAM, bool verifyPeer = true) {
 			super(af, type);
-			initSsl();
+			initSsl(verifyPeer);
 		}
 
 		this(socket_t sock, AddressFamily af) {
 			super(sock, af);
-			initSsl();
+			initSsl(true);
 		}
 
 		~this() {
